@@ -141,7 +141,7 @@ function connectPriceStream() {
       // After splash fades, show main UI
       setTimeout(() => {
         container.classList.add('ready');
-      }, 400);
+      }, 200);
     }
   };
   
