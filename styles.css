@@ -49,9 +49,28 @@ main {
 }
 
 .price {
+  display: inline-flex;
   font-size: 72px;
   font-weight: 300;
   letter-spacing: -0.02em;
+}
+
+.digit-slot {
+  display: inline-block;
+  height: 1.15em;
+  overflow: hidden;
+  position: relative;
+}
+
+.digit-roll {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.digit-roll span {
+  height: 1.15em;
+  line-height: 1.15em;
 }
 
 .chart-container {

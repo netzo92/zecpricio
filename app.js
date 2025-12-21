@@ -35,6 +35,65 @@ function formatPrice(price) {
   });
 }
 
+// Current displayed characters
+let currentChars = [];
+
+// Create rolling digit HTML
+function createDigitSlot(char, index) {
+  const slot = document.createElement('span');
+  slot.className = 'digit-slot';
+  slot.dataset.index = index;
+  
+  const roll = document.createElement('span');
+  roll.className = 'digit-roll';
+  
+  // For digits, create a column of 0-9
+  if (/\d/.test(char)) {
+    for (let i = 0; i <= 9; i++) {
+      const span = document.createElement('span');
+      span.textContent = i;
+      roll.appendChild(span);
+    }
+    roll.style.transform = `translateY(-${parseInt(char) * (100 / 10)}%)`;
+  } else {
+    // For non-digits (comma, period), just show the character
+    const span = document.createElement('span');
+    span.textContent = char;
+    roll.appendChild(span);
+  }
+  
+  slot.appendChild(roll);
+  return slot;
+}
+
+// Update price with rolling animation
+function updatePriceDisplay(newPrice) {
+  const newChars = newPrice.split('');
+  
+  // If structure changed (different length), rebuild
+  if (newChars.length !== currentChars.length) {
+    priceEl.innerHTML = '';
+    newChars.forEach((char, i) => {
+      priceEl.appendChild(createDigitSlot(char, i));
+    });
+    currentChars = newChars;
+    return;
+  }
+  
+  // Update only changed digits with roll animation
+  const slots = priceEl.querySelectorAll('.digit-slot');
+  newChars.forEach((char, i) => {
+    if (char !== currentChars[i]) {
+      const roll = slots[i].querySelector('.digit-roll');
+      if (/\d/.test(char)) {
+        roll.style.transform = `translateY(-${parseInt(char) * (100 / 10)}%)`;
+      }
+    }
+  });
+  
+  currentChars = newChars;
+}
+
 // Fetch current ZEC price
 async function fetchPrice() {
   try {
@@ -63,7 +122,7 @@ async function fetchChartData() {
 async function updatePrice() {
   const price = await fetchPrice();
   if (price !== null) {
-    priceEl.textContent = formatPrice(price);
+    updatePriceDisplay(formatPrice(price));
   }
 }
 
