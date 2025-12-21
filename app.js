@@ -20,6 +20,7 @@ const container = document.querySelector('.container');
 let chart = null;
 let historicalData = null;  // CoinGecko data
 let livePrice = null;       // Current Binance price
+let previousPrice = null;   // For tracking direction
 let isReady = false;        // Has first price loaded?
 
 // Update live indicator position
@@ -109,6 +110,21 @@ function connectPriceStream() {
   ws.onmessage = (event) => {
     const trade = JSON.parse(event.data);
     const price = parseFloat(trade.p);
+    
+    // Flash color on price change
+    if (previousPrice !== null && price !== previousPrice) {
+      priceEl.classList.remove('flash-up', 'flash-down');
+      // Force reflow to restart transition
+      void priceEl.offsetWidth;
+      priceEl.classList.add(price > previousPrice ? 'flash-up' : 'flash-down');
+      
+      // Remove class after animation
+      setTimeout(() => {
+        priceEl.classList.remove('flash-up', 'flash-down');
+      }, 100);
+    }
+    
+    previousPrice = price;
     livePrice = price;
     updatePriceDisplay(formatPrice(price));
     updateChartLiveTip();
