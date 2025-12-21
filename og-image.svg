@@ -1,0 +1,32 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#000"/>
+  
+  <!-- ZEC ticker -->
+  <text x="600" y="280" 
+        font-family="Inter, -apple-system, sans-serif" 
+        font-size="32" 
+        font-weight="500"
+        letter-spacing="0.2em"
+        fill="#fff"
+        fill-opacity="0.5"
+        text-anchor="middle">ZEC</text>
+  
+  <!-- Subtle chart line hint -->
+  <path d="M 100 480 
+           Q 200 478, 300 475 
+           T 500 470 
+           T 650 460
+           T 750 400
+           T 850 340
+           T 950 380
+           T 1050 360
+           L 1100 370" 
+        stroke="#fff" 
+        stroke-width="2" 
+        stroke-opacity="0.3"
+        fill="none"/>
+  
+  <!-- Live dot -->
+  <circle cx="1100" cy="370" r="4" fill="#fff" fill-opacity="0.5"/>
+</svg>
+
