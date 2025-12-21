@@ -1,7 +1,11 @@
 // ZEC Price App
+
+// Binance WebSocket for real-time price
+const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws/zecusdt@trade';
+
+// CoinGecko for historical chart data
 const API_KEY = 'CG-6CM3isvQQP4nPqrW5iVR6hdC';
 const API_BASE = 'https://pro-api.coingecko.com/api/v3';
-const COINGECKO_PRICE_URL = `${API_BASE}/simple/price?ids=zcash&vs_currencies=usd`;
 const COINGECKO_CHART_URL = `${API_BASE}/coins/zcash/market_chart?vs_currency=usd&days=365`;
 
 const headers = {
@@ -94,16 +98,25 @@ function updatePriceDisplay(newPrice) {
   currentChars = newChars;
 }
 
-// Fetch current ZEC price
-async function fetchPrice() {
-  try {
-    const res = await fetch(COINGECKO_PRICE_URL, { headers });
-    const data = await res.json();
-    return data.zcash.usd;
-  } catch (err) {
-    console.error('Failed to fetch price:', err);
-    return null;
-  }
+// Connect to Binance WebSocket for real-time price
+function connectPriceStream() {
+  const ws = new WebSocket(BINANCE_WS_URL);
+  
+  ws.onmessage = (event) => {
+    const trade = JSON.parse(event.data);
+    const price = parseFloat(trade.p);
+    updatePriceDisplay(formatPrice(price));
+  };
+  
+  ws.onclose = () => {
+    // Reconnect after 1 second if connection drops
+    setTimeout(connectPriceStream, 1000);
+  };
+  
+  ws.onerror = (err) => {
+    console.error('WebSocket error:', err);
+    ws.close();
+  };
 }
 
 // Fetch 1 year chart data
@@ -118,13 +131,6 @@ async function fetchChartData() {
   }
 }
 
-// Update displayed price
-async function updatePrice() {
-  const price = await fetchPrice();
-  if (price !== null) {
-    updatePriceDisplay(formatPrice(price));
-  }
-}
 
 // Initialize or update chart
 async function updateChart() {
@@ -185,10 +191,9 @@ async function updateChart() {
 }
 
 // Initial load
-updatePrice();
+connectPriceStream();
 updateChart();
 
-// Update price and chart every 1 second
-setInterval(updatePrice, 1000);
-setInterval(updateChart, 1000);
+// Update chart every 30 seconds (historical data doesn't need to be instant)
+setInterval(updateChart, 30000);
 
