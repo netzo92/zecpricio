@@ -119,9 +119,7 @@ async function updateChart() {
 updatePrice();
 updateChart();
 
-// Update price every 1 second
+// Update price and chart every 1 second
 setInterval(updatePrice, 1000);
-
-// Update chart every 60 seconds (API rate limits)
-setInterval(updateChart, 60000);
+setInterval(updateChart, 1000);
 
