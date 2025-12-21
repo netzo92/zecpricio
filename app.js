@@ -194,6 +194,6 @@ async function updateChart() {
 connectPriceStream();
 updateChart();
 
-// Update chart every 30 seconds (historical data doesn't need to be instant)
-setInterval(updateChart, 30000);
+// Update chart every 1 second
+setInterval(updateChart, 1000);
 
