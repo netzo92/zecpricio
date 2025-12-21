@@ -201,7 +201,27 @@ async function initChart() {
       },
       plugins: {
         legend: { display: false },
-        tooltip: { enabled: false }
+        tooltip: {
+          enabled: true,
+          backgroundColor: '#000',
+          borderColor: '#333',
+          borderWidth: 1,
+          titleColor: '#666',
+          bodyColor: '#fff',
+          titleFont: { family: "'Inter', sans-serif", size: 11, weight: '400' },
+          bodyFont: { family: "'Inter', sans-serif", size: 14, weight: '300' },
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            title: (items) => {
+              const date = new Date(items[0].label);
+              return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            },
+            label: (item) => {
+              return '$' + item.raw.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+          }
+        }
       },
       scales: {
         x: {
