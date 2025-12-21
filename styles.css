@@ -81,15 +81,15 @@ main {
 
 /* Price direction flash */
 .price.flash-up .digit-roll span {
-  color: #4ade80;
+  color: #22c55e;
 }
 
 .price.flash-down .digit-roll span {
-  color: #f87171;
+  color: #ef4444;
 }
 
 .price .digit-roll span {
-  transition: color 0.6s ease;
+  transition: color 0.8s ease;
 }
 
 .chart-container {
