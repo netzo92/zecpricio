@@ -52,11 +52,6 @@ main {
   font-size: 72px;
   font-weight: 300;
   letter-spacing: -0.02em;
-  transition: opacity 0.15s ease;
-}
-
-.price.updating {
-  opacity: 0.5;
 }
 
 .chart-container {

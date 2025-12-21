@@ -59,18 +59,12 @@ async function fetchChartData() {
   }
 }
 
-// Update displayed price with animation
+// Update displayed price
 async function updatePrice() {
-  priceEl.classList.add('updating');
-  
   const price = await fetchPrice();
-  
-  setTimeout(() => {
-    if (price !== null) {
-      priceEl.textContent = formatPrice(price);
-    }
-    priceEl.classList.remove('updating');
-  }, 150);
+  if (price !== null) {
+    priceEl.textContent = formatPrice(price);
+  }
 }
 
 // Initialize or update chart
