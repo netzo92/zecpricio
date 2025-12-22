@@ -67,6 +67,7 @@ main {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
+  padding-bottom: 100px;
 }
 
 .container {
@@ -81,6 +82,44 @@ main {
   opacity: 1;
 }
 
+/* Headlines container */
+.headlines {
+  position: relative;
+  height: 150px;
+}
+
+/* Individual headline */
+.headline {
+  position: absolute;
+  width: 100%;
+  left: 0;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Price headline */
+.headline-price {
+  top: 0;
+  opacity: 0;
+  transform: translateY(-30px) scale(0.7);
+}
+
+.headline-price.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+/* Shielded headline */
+.headline-shielded {
+  top: 0;
+  opacity: 0;
+  transform: translateY(30px) scale(0.7);
+}
+
+.headline-shielded.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
 .ticker {
   font-size: 14px;
   font-weight: 500;
@@ -89,6 +128,7 @@ main {
   margin-bottom: 8px;
 }
 
+/* Price display */
 .price-wrapper {
   display: inline-flex;
   align-items: baseline;
@@ -109,6 +149,50 @@ main {
   letter-spacing: -0.02em;
 }
 
+/* Shielded display */
+.shielded-wrapper {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+}
+
+.shielded-value {
+  font-size: 56px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+
+.shielded-suffix {
+  font-size: 24px;
+  font-weight: 300;
+  opacity: 0.6;
+}
+
+.shielded-percent {
+  margin-top: 16px;
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  opacity: 0.25;
+}
+
+@media (max-width: 480px) {
+  .price {
+    font-size: 56px;
+  }
+  .shielded-value {
+    font-size: 40px;
+  }
+  .shielded-suffix {
+    font-size: 18px;
+  }
+  .headlines {
+    height: 100px;
+  }
+}
+
+/* Rolling digits */
 .digit-slot {
   display: inline-block;
   height: 1.15em;
@@ -140,10 +224,36 @@ main {
   transition: color 0.8s ease;
 }
 
+/* Charts wrapper */
+.charts-wrapper {
+  margin-top: 48px;
+}
+
+/* Chart views container */
+.chart-views {
+  position: relative;
+  height: 200px;
+}
+
+/* Chart views */
+.chart-view {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.chart-view.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
 .chart-container {
   position: relative;
-  margin-top: 60px;
-  height: 200px;
+  height: 100%;
   opacity: 0.8;
 }
 
@@ -188,3 +298,49 @@ canvas {
   animation: pulse 2s ease-out infinite;
 }
 
+/* View Toggle Button */
+.view-toggle {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 100px;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 50;
+}
+
+.view-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.view-toggle:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+.toggle-arrow {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.3s ease;
+}
+
+.view-toggle.flipped .toggle-arrow {
+  transform: rotate(180deg);
+}
+
+.toggle-text {
+  transition: opacity 0.2s ease;
+}

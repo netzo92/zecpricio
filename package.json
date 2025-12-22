@@ -5,7 +5,8 @@
   "main": "app.js",
   "scripts": {
     "start": "npx serve -l 3000 .",
-    "dev": "npx serve -l 3000 ."
+    "dev": "npx serve -l 3000 .",
+    "fetch-shielded": "node scripts/fetch-shielded-data.js"
   },
   "keywords": ["zec", "zcash", "price", "cryptocurrency"],
   "author": "",

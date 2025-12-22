@@ -1,4 +1,8 @@
-// ZEC Price App
+// ZEC App - Price + Shielded Supply Charts
+
+// ============================================================================
+// Configuration
+// ============================================================================
 
 // Binance WebSocket for real-time price
 const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws/zecusdt@trade';
@@ -7,38 +11,95 @@ const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws/zecusdt@trade';
 const API_KEY = 'CG-6CM3isvQQP4nPqrW5iVR6hdC';
 const API_BASE = 'https://pro-api.coingecko.com/api/v3';
 const COINGECKO_PRICE_URL = `${API_BASE}/simple/price?ids=zcash&vs_currencies=usd`;
+const COINGECKO_COIN_URL = `${API_BASE}/coins/zcash`;
 const COINGECKO_CHART_URL = `${API_BASE}/coins/zcash/market_chart?vs_currency=usd&days=365`;
+
+// Shielded pool data
+const SHIELDED_DATA_URL = 'shielded-pool-data.json';
 
 const headers = {
   'x-cg-pro-api-key': API_KEY
 };
 
-const priceEl = document.getElementById('price');
-const chartCanvas = document.getElementById('chart');
-const liveIndicator = document.getElementById('live-indicator');
-const container = document.querySelector('.container');
+// ============================================================================
+// DOM Elements
+// ============================================================================
+
 const splash = document.getElementById('splash');
+const container = document.getElementById('container');
+const viewToggle = document.getElementById('view-toggle');
+const toggleText = viewToggle.querySelector('.toggle-text');
 
-let chart = null;
-let historicalData = null;  // CoinGecko data
-let livePrice = null;       // Current Binance price
-let previousPrice = null;   // For tracking direction
-let isReady = false;        // Has first price loaded?
+// Headlines
+const headlinePrice = document.getElementById('headline-price');
+const headlineShielded = document.getElementById('headline-shielded');
+const shieldedValueEl = document.getElementById('shielded-value');
+const shieldedPercentEl = document.getElementById('shielded-percent');
 
-// Update live indicator position
-function updateLiveIndicator() {
-  if (!chart || !chart.data.datasets[0].data.length) return;
-  
-  const meta = chart.getDatasetMeta(0);
-  const lastPoint = meta.data[meta.data.length - 1];
-  
-  if (lastPoint) {
-    liveIndicator.style.left = `${lastPoint.x}px`;
-    liveIndicator.style.top = `${lastPoint.y}px`;
+// Charts
+const chartPrice = document.getElementById('chart-price');
+const chartShielded = document.getElementById('chart-shielded');
+const priceChartCanvas = document.getElementById('price-chart');
+const shieldedChartCanvas = document.getElementById('shielded-chart');
+
+const priceEl = document.getElementById('price');
+const liveIndicator = document.getElementById('live-indicator');
+
+// ============================================================================
+// State
+// ============================================================================
+
+let currentView = 'price'; // 'price' or 'shielded'
+let isReady = false;
+
+// Shielded data
+let shieldedData = null;
+let shieldedChart = null;
+let circulatingSupply = null;
+
+// Price data
+let priceChart = null;
+let priceHistoricalData = null;
+let livePrice = null;
+let previousPrice = null;
+let currentPriceChars = [];
+
+// ============================================================================
+// View Toggle
+// ============================================================================
+
+function switchView() {
+  if (currentView === 'price') {
+    currentView = 'shielded';
+    // Swap headlines
+    headlinePrice.classList.remove('active');
+    headlineShielded.classList.add('active');
+    // Swap charts
+    chartPrice.classList.remove('active');
+    chartShielded.classList.add('active');
+    // Update button
+    toggleText.textContent = 'show price chart';
+    viewToggle.classList.add('flipped');
+  } else {
+    currentView = 'price';
+    // Swap headlines
+    headlineShielded.classList.remove('active');
+    headlinePrice.classList.add('active');
+    // Swap charts
+    chartShielded.classList.remove('active');
+    chartPrice.classList.add('active');
+    // Update button
+    toggleText.textContent = 'show shielded supply';
+    viewToggle.classList.remove('flipped');
   }
 }
 
-// Format price with commas and 2 decimal places
+viewToggle.addEventListener('click', switchView);
+
+// ============================================================================
+// Formatting Helpers
+// ============================================================================
+
 function formatPrice(price) {
   return price.toLocaleString('en-US', {
     minimumFractionDigits: 2,
@@ -46,10 +107,14 @@ function formatPrice(price) {
   });
 }
 
-// Current displayed characters
-let currentChars = [];
+function formatShieldedValue(value) {
+  return Math.round(value).toLocaleString('en-US');
+}
 
-// Create rolling digit HTML
+// ============================================================================
+// Rolling Digit Animation (for price)
+// ============================================================================
+
 function createDigitSlot(char, index) {
   const slot = document.createElement('span');
   slot.className = 'digit-slot';
@@ -58,7 +123,6 @@ function createDigitSlot(char, index) {
   const roll = document.createElement('span');
   roll.className = 'digit-roll';
   
-  // For digits, create a column of 0-9
   if (/\d/.test(char)) {
     for (let i = 0; i <= 9; i++) {
       const span = document.createElement('span');
@@ -67,7 +131,6 @@ function createDigitSlot(char, index) {
     }
     roll.style.transform = `translateY(-${parseInt(char) * (100 / 10)}%)`;
   } else {
-    // For non-digits (comma, period), just show the character
     const span = document.createElement('span');
     span.textContent = char;
     roll.appendChild(span);
@@ -77,24 +140,21 @@ function createDigitSlot(char, index) {
   return slot;
 }
 
-// Update price with rolling animation
 function updatePriceDisplay(newPrice) {
   const newChars = newPrice.split('');
   
-  // If structure changed (different length), rebuild
-  if (newChars.length !== currentChars.length) {
+  if (newChars.length !== currentPriceChars.length) {
     priceEl.innerHTML = '';
     newChars.forEach((char, i) => {
       priceEl.appendChild(createDigitSlot(char, i));
     });
-    currentChars = newChars;
+    currentPriceChars = newChars;
     return;
   }
   
-  // Update only changed digits with roll animation
   const slots = priceEl.querySelectorAll('.digit-slot');
   newChars.forEach((char, i) => {
-    if (char !== currentChars[i]) {
+    if (char !== currentPriceChars[i]) {
       const roll = slots[i].querySelector('.digit-roll');
       if (/\d/.test(char)) {
         roll.style.transform = `translateY(-${parseInt(char) * (100 / 10)}%)`;
@@ -102,10 +162,123 @@ function updatePriceDisplay(newPrice) {
     }
   });
   
-  currentChars = newChars;
+  currentPriceChars = newChars;
 }
 
-// Fetch initial price from CoinGecko
+// ============================================================================
+// Live Indicator
+// ============================================================================
+
+function updateLiveIndicator() {
+  if (!priceChart || !priceChart.data.datasets[0].data.length) return;
+  
+  const meta = priceChart.getDatasetMeta(0);
+  const lastPoint = meta.data[meta.data.length - 1];
+  
+  if (lastPoint) {
+    liveIndicator.style.left = `${lastPoint.x}px`;
+    liveIndicator.style.top = `${lastPoint.y}px`;
+  }
+}
+
+// ============================================================================
+// Shielded Data & Chart
+// ============================================================================
+
+async function fetchShieldedData() {
+  try {
+    const res = await fetch(SHIELDED_DATA_URL);
+    const json = await res.json();
+    shieldedData = json.data;
+    return shieldedData;
+  } catch (err) {
+    console.error('Failed to fetch shielded data:', err);
+    return null;
+  }
+}
+
+function initShieldedChart() {
+  if (!shieldedData || shieldedData.length === 0) return;
+  
+  const labels = shieldedData.map(d => new Date(d.t * 1000));
+  const data = shieldedData.map(d => d.v);
+  
+  // Update headline value
+  const latestValue = shieldedData[shieldedData.length - 1].v;
+  shieldedValueEl.textContent = formatShieldedValue(latestValue);
+  
+  // Update percentage if we have circulating supply
+  if (circulatingSupply && circulatingSupply > 0) {
+    const percent = (latestValue / circulatingSupply) * 100;
+    shieldedPercentEl.textContent = `${Math.round(percent)}%`;
+  }
+  
+  shieldedChart = new Chart(shieldedChartCanvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: '#fff',
+        borderWidth: 1.5,
+        fill: false,
+        tension: 0.1,
+        pointRadius: 0,
+        pointHoverRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        intersect: false,
+        mode: 'index'
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          backgroundColor: '#000',
+          borderColor: '#333',
+          borderWidth: 1,
+          titleColor: '#666',
+          bodyColor: '#fff',
+          titleFont: { family: "'Inter', sans-serif", size: 11, weight: '400' },
+          bodyFont: { family: "'Inter', sans-serif", size: 14, weight: '300' },
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            title: (items) => {
+              const date = new Date(items[0].label);
+              return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            },
+            label: (item) => {
+              return Math.round(item.raw).toLocaleString('en-US') + ' ZEC';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          display: false,
+          grid: { display: false }
+        },
+        y: {
+          display: false,
+          grid: { display: false }
+        }
+      },
+      animation: {
+        duration: 0
+      }
+    }
+  });
+}
+
+// ============================================================================
+// Price Data & Chart
+// ============================================================================
+
 async function fetchInitialPrice() {
   try {
     const res = await fetch(COINGECKO_PRICE_URL, { headers });
@@ -117,73 +290,36 @@ async function fetchInitialPrice() {
   }
 }
 
-// Reveal the UI
-function revealUI() {
-  if (isReady) return;
-  isReady = true;
-  splash.classList.add('fade-out');
-  setTimeout(() => {
-    container.classList.add('ready');
-  }, 1300);
-}
-
-// Connect to Binance WebSocket for real-time price updates
-function connectPriceStream() {
-  const ws = new WebSocket(BINANCE_WS_URL);
-  
-  ws.onmessage = (event) => {
-    const trade = JSON.parse(event.data);
-    const price = parseFloat(trade.p);
-    
-    // Flash color on price change
-    if (previousPrice !== null && price !== previousPrice) {
-      priceEl.classList.remove('flash-up', 'flash-down');
-      void priceEl.offsetWidth;
-      priceEl.classList.add(price > previousPrice ? 'flash-up' : 'flash-down');
-      
-      setTimeout(() => {
-        priceEl.classList.remove('flash-up', 'flash-down');
-      }, 600);
-    }
-    
-    previousPrice = price;
-    livePrice = price;
-    updatePriceDisplay(formatPrice(price));
-    updateChartLiveTip();
-    document.title = `$${formatPrice(price)} · ZEC`;
-  };
-  
-  ws.onclose = () => {
-    setTimeout(connectPriceStream, 1000);
-  };
-  
-  ws.onerror = (err) => {
-    console.error('WebSocket error:', err);
-    ws.close();
-  };
-}
-
-// Fetch 1 year chart data
-async function fetchChartData() {
+async function fetchCirculatingSupply() {
   try {
-    const res = await fetch(COINGECKO_CHART_URL, { headers });
+    const res = await fetch(COINGECKO_COIN_URL, { headers });
     const data = await res.json();
-    historicalData = data.prices; // [[timestamp, price], ...]
-    return historicalData;
+    circulatingSupply = data.market_data?.circulating_supply;
+    return circulatingSupply;
   } catch (err) {
-    console.error('Failed to fetch chart data:', err);
+    console.error('Failed to fetch circulating supply:', err);
     return null;
   }
 }
 
-// Get chart data with live tip appended
-function getChartDataWithLiveTip() {
-  if (!historicalData) return { labels: [], data: [] };
+async function fetchPriceChartData() {
+  try {
+    const res = await fetch(COINGECKO_CHART_URL, { headers });
+    const data = await res.json();
+    priceHistoricalData = data.prices;
+    return priceHistoricalData;
+  } catch (err) {
+    console.error('Failed to fetch price chart data:', err);
+    return null;
+  }
+}
+
+function getPriceChartDataWithLiveTip() {
+  if (!priceHistoricalData) return { labels: [], data: [] };
   
-  const labels = historicalData.map(p => new Date(p[0]));
-  const data = historicalData.map(p => p[1]);
+  const labels = priceHistoricalData.map(p => new Date(p[0]));
+  const data = priceHistoricalData.map(p => p[1]);
   
-  // Append live price as the rightmost point
   if (livePrice !== null) {
     labels.push(new Date());
     data.push(livePrice);
@@ -192,25 +328,22 @@ function getChartDataWithLiveTip() {
   return { labels, data };
 }
 
-// Update just the live tip of the chart (called on every price update)
-function updateChartLiveTip() {
-  if (!chart || !historicalData) return;
+function updatePriceChartLiveTip() {
+  if (!priceChart || !priceHistoricalData) return;
   
-  const { labels, data } = getChartDataWithLiveTip();
-  chart.data.labels = labels;
-  chart.data.datasets[0].data = data;
-  chart.update('none');
+  const { labels, data } = getPriceChartDataWithLiveTip();
+  priceChart.data.labels = labels;
+  priceChart.data.datasets[0].data = data;
+  priceChart.update('none');
   updateLiveIndicator();
 }
 
-// Initialize chart with historical data
-async function initChart() {
-  await fetchChartData();
-  if (!historicalData) return;
-
-  const { labels, data } = getChartDataWithLiveTip();
-
-  chart = new Chart(chartCanvas, {
+function initPriceChart() {
+  if (!priceHistoricalData) return;
+  
+  const { labels, data } = getPriceChartDataWithLiveTip();
+  
+  priceChart = new Chart(priceChartCanvas, {
     type: 'line',
     data: {
       labels,
@@ -273,37 +406,93 @@ async function initChart() {
   });
 }
 
-// Refresh historical data periodically
-async function refreshHistoricalData() {
-  await fetchChartData();
-  updateChartLiveTip();
+// ============================================================================
+// WebSocket Price Stream
+// ============================================================================
+
+function connectPriceStream() {
+  const ws = new WebSocket(BINANCE_WS_URL);
+  
+  ws.onmessage = (event) => {
+    const trade = JSON.parse(event.data);
+    const price = parseFloat(trade.p);
+    
+    // Flash color on price change
+    if (previousPrice !== null && price !== previousPrice) {
+      priceEl.classList.remove('flash-up', 'flash-down');
+      void priceEl.offsetWidth;
+      priceEl.classList.add(price > previousPrice ? 'flash-up' : 'flash-down');
+      
+      setTimeout(() => {
+        priceEl.classList.remove('flash-up', 'flash-down');
+      }, 600);
+    }
+    
+    previousPrice = price;
+    livePrice = price;
+    updatePriceDisplay(formatPrice(price));
+    updatePriceChartLiveTip();
+    document.title = `$${formatPrice(price)} · ZEC`;
+  };
+  
+  ws.onclose = () => {
+    setTimeout(connectPriceStream, 1000);
+  };
+  
+  ws.onerror = (err) => {
+    console.error('WebSocket error:', err);
+    ws.close();
+  };
 }
 
-// Initial load
+// ============================================================================
+// UI Reveal
+// ============================================================================
+
+function revealUI() {
+  if (isReady) return;
+  isReady = true;
+  splash.classList.add('fade-out');
+  setTimeout(() => {
+    container.classList.add('ready');
+  }, 1300);
+}
+
+// ============================================================================
+// Initialization
+// ============================================================================
+
 async function init() {
-  // Fetch initial price and chart data in parallel
-  const [initialPrice] = await Promise.all([
+  // Fetch all data in parallel
+  const [shielded, initialPrice] = await Promise.all([
+    fetchShieldedData(),
     fetchInitialPrice(),
-    initChart()
+    fetchPriceChartData(),
+    fetchCirculatingSupply()
   ]);
   
-  // Show initial price and reveal UI
+  // Initialize shielded chart and value
+  initShieldedChart();
+  
+  // Initialize price display and chart
   if (initialPrice !== null) {
     livePrice = initialPrice;
     previousPrice = initialPrice;
     updatePriceDisplay(formatPrice(initialPrice));
-    updateChartLiveTip();
-    document.title = `$${formatPrice(initialPrice)} · ZEC`;
   }
+  initPriceChart();
   
+  // Reveal UI
   revealUI();
   
-  // Connect WebSocket for live updates
+  // Connect WebSocket for live price updates
   connectPriceStream();
 }
 
 init();
 
-// Refresh historical data every 5 minutes
-setInterval(refreshHistoricalData, 5 * 60 * 1000);
-
+// Refresh price data every 5 minutes
+setInterval(async () => {
+  await fetchPriceChartData();
+  updatePriceChartLiveTip();
+}, 5 * 60 * 1000);
