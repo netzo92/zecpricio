@@ -6,7 +6,8 @@
   "scripts": {
     "start": "npx serve -l 3000 .",
     "dev": "npx serve -l 3000 .",
-    "fetch-shielded": "node scripts/fetch-shielded-data.js"
+    "fetch-shielded": "node scripts/fetch-shielded-data.js",
+    "update-shielded": "node scripts/update-shielded-daily.js"
   },
   "keywords": ["zec", "zcash", "price", "cryptocurrency"],
   "author": "",
