@@ -357,3 +357,30 @@ canvas {
 .toggle-text {
   transition: opacity 0.2s ease;
 }
+
+/* Poll progress bar */
+.chart-shielded {
+  position: absolute;
+}
+
+.poll-progress {
+  position: absolute;
+  bottom: -12px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  border-radius: 1px;
+}
+
+.poll-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: width 0.5s linear;
+}
+
+.poll-progress-bar.polling {
+  background: rgba(255, 255, 255, 0.3);
+}

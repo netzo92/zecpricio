@@ -40,6 +40,7 @@ const shieldedChartCanvas = document.getElementById('shielded-chart');
 
 const priceEl = document.getElementById('price');
 const liveIndicator = document.getElementById('live-indicator');
+const pollProgressBar = document.getElementById('poll-progress-bar');
 
 // ============================================================================
 // State
@@ -664,9 +665,33 @@ setInterval(async () => {
 }, 5 * 60 * 1000);
 
 // Refresh shielded supply every 75 seconds (~1 block)
-setInterval(async () => {
+const POLL_INTERVAL = 75 * 1000;
+let pollStartTime = Date.now();
+
+// Animate progress bar
+function updatePollProgress() {
+  const elapsed = Date.now() - pollStartTime;
+  const progress = Math.min((elapsed / POLL_INTERVAL) * 100, 100);
+  pollProgressBar.style.width = `${progress}%`;
+}
+
+// Start progress bar animation
+setInterval(updatePollProgress, 500);
+
+// Poll for shielded supply
+async function pollShieldedSupply() {
+  // Flash the bar briefly to indicate polling
+  pollProgressBar.classList.add('polling');
+  
   const liveShielded = await fetchLiveShieldedSupply();
   if (liveShielded) {
     updateLiveShieldedDisplay(liveShielded);
   }
-}, 75 * 1000);
+  
+  // Reset progress bar
+  pollProgressBar.classList.remove('polling');
+  pollProgressBar.style.width = '0%';
+  pollStartTime = Date.now();
+}
+
+setInterval(pollShieldedSupply, POLL_INTERVAL);
