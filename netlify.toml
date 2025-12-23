@@ -5,9 +5,14 @@
 [functions]
   node_bundler = "esbuild"
 
-# Redirect for cleaner function URL
+# Redirects for cleaner function URLs
 [[redirects]]
   from = "/api/zcash-rpc"
   to = "/.netlify/functions/zcash-rpc"
+  status = 200
+
+[[redirects]]
+  from = "/api/coingecko"
+  to = "/.netlify/functions/coingecko"
   status = 200
 
