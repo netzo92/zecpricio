@@ -7,20 +7,15 @@
 // Binance WebSocket for real-time price
 const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws/zecusdt@trade';
 
-// CoinGecko for initial price and historical chart data
-const API_KEY = 'CG-6CM3isvQQP4nPqrW5iVR6hdC';
-const API_BASE = 'https://pro-api.coingecko.com/api/v3';
-const COINGECKO_PRICE_URL = `${API_BASE}/simple/price?ids=zcash&vs_currencies=usd`;
-const COINGECKO_COIN_URL = `${API_BASE}/coins/zcash`;
-const COINGECKO_CHART_URL = `${API_BASE}/coins/zcash/market_chart?vs_currency=usd&days=365`;
+// CoinGecko via Netlify function (hides API key)
+const COINGECKO_PROXY = '/api/coingecko';
+const COINGECKO_PRICE_URL = `${COINGECKO_PROXY}?endpoint=simple/price?ids=zcash%26vs_currencies=usd`;
+const COINGECKO_COIN_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash`;
+const COINGECKO_CHART_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=365`;
 
 // Shielded pool data
 const SHIELDED_DATA_URL = 'shielded-pool-data.json';
 const ZCASH_RPC_PROXY = '/api/zcash-rpc';  // Netlify function
-
-const headers = {
-  'x-cg-pro-api-key': API_KEY
-};
 
 // ============================================================================
 // DOM Elements
@@ -345,7 +340,7 @@ function initShieldedChart() {
 
 async function fetchInitialPrice() {
   try {
-    const res = await fetch(COINGECKO_PRICE_URL, { headers });
+    const res = await fetch(COINGECKO_PRICE_URL);
     const data = await res.json();
     return data.zcash.usd;
   } catch (err) {
@@ -356,7 +351,7 @@ async function fetchInitialPrice() {
 
 async function fetchCirculatingSupply() {
   try {
-    const res = await fetch(COINGECKO_COIN_URL, { headers });
+    const res = await fetch(COINGECKO_COIN_URL);
     const data = await res.json();
     circulatingSupply = data.market_data?.circulating_supply;
     return circulatingSupply;
@@ -368,7 +363,7 @@ async function fetchCirculatingSupply() {
 
 async function fetchPriceChartData() {
   try {
-    const res = await fetch(COINGECKO_CHART_URL, { headers });
+    const res = await fetch(COINGECKO_CHART_URL);
     const data = await res.json();
     priceHistoricalData = data.prices;
     return priceHistoricalData;
@@ -504,7 +499,7 @@ function startPricePolling() {
   console.log('WebSocket unavailable, falling back to polling');
   pollingInterval = setInterval(async () => {
     try {
-      const res = await fetch(COINGECKO_PRICE_URL, { headers });
+      const res = await fetch(COINGECKO_PRICE_URL);
       const data = await res.json();
       const price = data.zcash.usd;
       updatePrice(price);
