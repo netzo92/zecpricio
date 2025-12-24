@@ -261,7 +261,11 @@ function updateShieldedBtn(data) {
   const chartData = data || shieldedData;
   if (chartData && chartData.length >= 2) {
     const firstValue = chartData[0].v;
-    const lastValue = chartData[chartData.length - 1].v;
+    // For M/Y, use live value if available (more accurate than stale JSON)
+    let lastValue = chartData[chartData.length - 1].v;
+    if (shieldedChartTimeframe !== '1d' && currentShieldedValue > 0) {
+      lastValue = currentShieldedValue;
+    }
     if (firstValue > 0) {
       percentChange = ((lastValue - firstValue) / firstValue) * 100;
     }
