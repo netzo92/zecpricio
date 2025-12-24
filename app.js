@@ -303,6 +303,12 @@ async function toggleShieldedChartTimeframe() {
     const labels = shieldedData.map(d => new Date(d.t * 1000));
     const data = shieldedData.map(d => d.v);
     
+    // For M/Y/All, append live value as final point (keeps chart current)
+    if (shieldedChartTimeframe !== '1d' && currentShieldedValue > 0) {
+      labels.push(new Date());
+      data.push(currentShieldedValue);
+    }
+    
     shieldedChart.data.labels = labels;
     shieldedChart.data.datasets[0].data = data;
     shieldedChart.update();
@@ -413,12 +419,12 @@ function updateLiveShieldedDisplay(data) {
     shieldedPercentEl.textContent = `${Math.round(percent)}%`;
   }
   
-  // Update chart with live tip (append to historical data)
-  if (shieldedChart && shieldedData) {
+  // Update chart's live tip (for M/Y/All timeframes only)
+  if (shieldedChart && shieldedData && shieldedChartTimeframe !== '1d') {
     const labels = shieldedData.map(d => new Date(d.t * 1000));
     const chartData = shieldedData.map(d => d.v);
     
-    // Append live data point
+    // Append live data point as the tip
     labels.push(new Date(data.time * 1000));
     chartData.push(data.total);
     
