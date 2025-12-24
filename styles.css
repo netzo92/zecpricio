@@ -339,6 +339,7 @@ canvas {
 .live-indicator {
   position: absolute;
   pointer-events: none;
+  transition: opacity 0.15s ease-out;
 }
 
 .live-indicator::before,

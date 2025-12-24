@@ -12,8 +12,9 @@ const COINGECKO_PROXY = '/api/coingecko';
 const COINGECKO_PRICE_URL = `${COINGECKO_PROXY}?endpoint=simple/price?ids=zcash%26vs_currencies=usd%26include_24hr_change=true`;
 const COINGECKO_COIN_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash`;
 const COINGECKO_CHART_1Y_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=365`;
-const COINGECKO_CHART_1M_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=30`;
+const COINGECKO_CHART_1MO_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=30`;
 const COINGECKO_CHART_1D_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=1`;
+const COINGECKO_CHART_1H_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=0.0417`; // ~1 hour
 
 // Shielded pool data
 const SHIELDED_DATA_URL = 'shielded-pool-data.json';
@@ -63,9 +64,10 @@ let priceHistoricalData = null;
 let livePrice = null;
 let previousPrice = null;
 let currentPriceChars = [];
-let priceChartTimeframe = '1d'; // '1d', '1m', or '1y' - starts at D
-const TIMEFRAME_CYCLE = ['1d', '1m', '1y'];
-const TIMEFRAME_LABELS = { '1d': 'D', '1m': 'M', '1y': 'Y' };
+let priceChartTimeframe = '1d'; // '1d', '1mo', '1y', or '1h' - starts at D
+const TIMEFRAME_CYCLE = ['1d', '1mo', '1y', '1h'];
+const TIMEFRAME_LABELS = { '1d': 'D', '1mo': 'M', '1y': 'Y', '1h': 'H' };
+let hourlyYAxisLocked = { min: null, max: null };
 
 // ============================================================================
 // View Toggle
@@ -437,6 +439,9 @@ async function togglePriceChartTimeframe() {
   const currentIndex = TIMEFRAME_CYCLE.indexOf(priceChartTimeframe);
   priceChartTimeframe = TIMEFRAME_CYCLE[(currentIndex + 1) % TIMEFRAME_CYCLE.length];
   
+  // Hide live indicator immediately
+  liveIndicator.style.opacity = '0';
+  
   // Add loading state to button
   priceChangeBtn.style.opacity = '0.5';
   
@@ -449,13 +454,23 @@ async function togglePriceChartTimeframe() {
     priceChart.data.labels = labels;
     priceChart.data.datasets[0].data = data;
     
-    // Force animation by updating with explicit config
-    priceChart.update({
-      duration: 400,
-      easing: 'easeOutQuart'
-    });
+    // Lock y-axis for 1H to prevent jitter on refresh, reset for others
+    if (priceChartTimeframe === '1h') {
+      lockYAxisForHourly(data);
+      applyYAxisLock();
+    } else {
+      hourlyYAxisLocked = { min: null, max: null };
+      applyYAxisLock();
+    }
     
-    setTimeout(updateLiveIndicator, 400);
+    // Update chart with animation
+    priceChart.update();
+    
+    // Reposition and show indicator after animation completes (400ms)
+    setTimeout(() => {
+      updateLiveIndicator();
+      liveIndicator.style.opacity = '1';
+    }, 450);
     
     // Calculate % change for current timeframe
     if (data.length >= 2) {
@@ -472,6 +487,7 @@ async function togglePriceChartTimeframe() {
     }
   } else {
     priceChangeBtn.style.opacity = '1';
+    liveIndicator.style.opacity = '1';
   }
 }
 
@@ -489,11 +505,12 @@ async function fetchCirculatingSupply() {
   }
 }
 
-async function fetchPriceChartData(timeframe = '1y') {
+async function fetchPriceChartData(timeframe = '1d') {
   try {
     let url;
-    if (timeframe === '1d') url = COINGECKO_CHART_1D_URL;
-    else if (timeframe === '1m') url = COINGECKO_CHART_1M_URL;
+    if (timeframe === '1h') url = COINGECKO_CHART_1H_URL;
+    else if (timeframe === '1d') url = COINGECKO_CHART_1D_URL;
+    else if (timeframe === '1mo') url = COINGECKO_CHART_1MO_URL;
     else url = COINGECKO_CHART_1Y_URL;
     
     const res = await fetch(url);
@@ -572,11 +589,14 @@ function initPriceChart() {
           callbacks: {
             title: (items) => {
               const date = new Date(items[0].label);
-              if (priceChartTimeframe === '1d') {
+              if (priceChartTimeframe === '1h') {
+                // Show time with minutes for 1H chart
+                return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+              } else if (priceChartTimeframe === '1d') {
                 // Show time for 1D chart
                 return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-              } else if (priceChartTimeframe === '1m') {
-                // Show date without year for 1M chart
+              } else if (priceChartTimeframe === '1mo') {
+                // Show date without year for 1MO chart
                 return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               }
               return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -729,6 +749,14 @@ async function init() {
   }
   initPriceChart();
   
+  // Lock y-axis for initial 1H view
+  if (priceChartTimeframe === '1h' && priceHistoricalData) {
+    const { data } = getPriceChartDataWithLiveTip();
+    lockYAxisForHourly(data);
+    applyYAxisLock();
+    priceChart.update('none');
+  }
+  
   // Fetch live shielded supply (updates headline and chart tip)
   const liveShielded = await fetchLiveShieldedSupply();
   if (liveShielded) {
@@ -744,11 +772,52 @@ async function init() {
 
 init();
 
-// Refresh price data every 5 minutes
-setInterval(async () => {
+// Refresh price chart data - 30s for 1H, 5min for others
+function getChartRefreshInterval() {
+  return priceChartTimeframe === '1h' ? 30 * 1000 : 5 * 60 * 1000;
+}
+
+function lockYAxisForHourly(data) {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const padding = (max - min) * 0.1; // 10% padding
+  hourlyYAxisLocked.min = min - padding;
+  hourlyYAxisLocked.max = max + padding;
+}
+
+function applyYAxisLock() {
+  if (priceChartTimeframe === '1h' && hourlyYAxisLocked.min !== null) {
+    priceChart.options.scales.y.min = hourlyYAxisLocked.min;
+    priceChart.options.scales.y.max = hourlyYAxisLocked.max;
+  } else {
+    // Reset to auto-scale for other timeframes
+    priceChart.options.scales.y.min = undefined;
+    priceChart.options.scales.y.max = undefined;
+  }
+}
+
+async function refreshPriceChart() {
   await fetchPriceChartData(priceChartTimeframe);
-  updatePriceChartLiveTip();
-}, 5 * 60 * 1000);
+  
+  // Update chart silently (no animation) for background refreshes
+  if (priceChart && priceHistoricalData) {
+    const { labels, data } = getPriceChartDataWithLiveTip();
+    priceChart.data.labels = labels;
+    priceChart.data.datasets[0].data = data;
+    
+    // For 1H, keep y-axis locked to prevent vertical jitter
+    if (priceChartTimeframe === '1h') {
+      applyYAxisLock();
+    }
+    
+    priceChart.update('none'); // No animation for silent refresh
+    updateLiveIndicator();
+  }
+  
+  setTimeout(refreshPriceChart, getChartRefreshInterval());
+}
+
+setTimeout(refreshPriceChart, getChartRefreshInterval());
 
 // Refresh shielded supply every 75 seconds (~1 block)
 const POLL_INTERVAL = 75 * 1000;
