@@ -9,6 +9,10 @@ const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws/zecusdt@trade';
 
 // CoinGecko via Netlify function (hides API key)
 // CoinMarketCap via Netlify function
+// CoinGecko Public API
+const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3/coins/markets';
+
+// CMC Proxy
 const CMC_PROXY = '/api/cmc';
 const CMC_QUOTES_URL = `${CMC_PROXY}?endpoint=cryptocurrency/quotes/latest&symbol=ZEC`;
 
@@ -108,6 +112,7 @@ let hourlyYAxisLocked = { min: null, max: null };
 
 // Currency State
 let zecQuotes = null; // Store latest quotes from CMC
+let currentCurrency = 'USD'; // 'USD' or 'BTC'
 
 // Predict Mode State
 let currentMode = 'dashboard';
@@ -652,52 +657,44 @@ function initShieldedChart() {
 
 async function fetchInitialPrice() {
   try {
-    // Only add convert if it's not USD (default) to avoid plan restrictions
-    let url = CMC_QUOTES_URL;
-    if (currentCurrency && currentCurrency !== 'USD') {
-      url += `&convert=${currentCurrency}`;
-    }
+    const currency = currentCurrency.toLowerCase();
+    const url = `${COINGECKO_API_URL}?vs_currency=${currency}&ids=zcash`;
 
     const res = await fetch(url);
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      console.error(`CMC API Error ${res.status}:`, errData);
+      console.error(`CoinGecko API Error ${res.status}`);
       return null;
     }
 
     const data = await res.json();
-    if (!data || !data.data || !data.data.ZEC) {
-      console.error('Invalid data structure from CMC:', data);
+    if (!data || data.length === 0) {
+      console.error('Invalid data structure from CoinGecko:', data);
       return null;
     }
 
-    zecQuotes = data.data.ZEC;
-    const quote = zecQuotes.quote[currentCurrency];
-
-    if (!quote) {
-      console.error(`No quote found for currency: ${currentCurrency}`, zecQuotes);
-      return null;
-    }
+    const zecData = data[0];
 
     // Update 24h change display
-    const change24h = quote.percent_change_24h;
+    const change24h = zecData.price_change_percentage_24h;
     if (change24h !== undefined) {
       updatePriceChangeBtn(change24h);
     }
 
     // Update Stats
     updateStatsDisplay({
-      volume_24h: quote.volume_24h
+      high_24h: zecData.high_24h,
+      low_24h: zecData.low_24h,
+      volume_24h: zecData.total_volume
     });
 
     // Update circulating supply if not already set
-    if (zecQuotes.circulating_supply) {
-      circulatingSupply = zecQuotes.circulating_supply;
+    if (zecData.circulating_supply) {
+      circulatingSupply = zecData.circulating_supply;
     }
 
-    return quote.price;
+    return zecData.current_price;
   } catch (err) {
-    console.error(`Failed to fetch ${currentCurrency} price from CMC:`, err);
+    console.error(`Failed to fetch ${currentCurrency} price from CoinGecko:`, err);
     return null;
   }
 }
@@ -718,18 +715,39 @@ function updatePriceChangeBtn(change) {
 
 // Toggle price chart timeframe
 async function togglePriceChartTimeframe() {
-  // Cycle to next timeframe: 1d → 1m → 1y → 1d...
+  const previousTimeframe = priceChartTimeframe;
+
+  // Cycle to next timeframe: 1d → 1mo → 1y → 1h → 1d...
   const currentIndex = TIMEFRAME_CYCLE.indexOf(priceChartTimeframe);
-  priceChartTimeframe = TIMEFRAME_CYCLE[(currentIndex + 1) % TIMEFRAME_CYCLE.length];
+  const nextIndex = (currentIndex + 1) % TIMEFRAME_CYCLE.length;
+  const nextTimeframe = TIMEFRAME_CYCLE[nextIndex];
+
+  // Set proposed timeframe
+  priceChartTimeframe = nextTimeframe;
 
   // Hide live indicator immediately
   liveIndicator.style.opacity = '0';
 
   // Add loading state to button
   priceChangeBtn.style.opacity = '0.5';
+  priceChangeBtn.style.pointerEvents = 'none'; // Prevent rapid clicks
 
   // Fetch new chart data
-  await fetchPriceChartData(priceChartTimeframe);
+  const newData = await fetchPriceChartData(priceChartTimeframe);
+
+  // If fetch failed, revert state and stop
+  if (!newData) {
+    console.warn(`Failed to fetch data for ${priceChartTimeframe}, reverting to ${previousTimeframe}`);
+    priceChartTimeframe = previousTimeframe;
+    priceChangeBtn.style.opacity = '1';
+    priceChangeBtn.style.pointerEvents = 'auto';
+    liveIndicator.style.opacity = '1';
+
+    // Optional: Flash error state on button
+    priceChangeBtn.classList.add('error');
+    setTimeout(() => priceChangeBtn.classList.remove('error'), 500);
+    return;
+  }
 
   // Update chart with smooth animation
   if (priceChart && priceHistoricalData) {
@@ -766,7 +784,10 @@ async function togglePriceChartTimeframe() {
       setTimeout(() => {
         updatePriceChangeBtn(percentChange);
         priceChangeBtn.style.opacity = '1';
+        priceChangeBtn.style.pointerEvents = 'auto';
       }, 150);
+    } else {
+      priceChangeBtn.style.pointerEvents = 'auto'; // Re-enable if no data to calc change
     }
   } else {
     priceChangeBtn.style.opacity = '1';
@@ -782,12 +803,17 @@ async function fetchCirculatingSupply() {
     // If we already have it from the initial price fetch, use it
     if (circulatingSupply) return circulatingSupply;
 
-    const res = await fetch(CMC_QUOTES_URL);
+    // Use CoinGecko for consistency if not set yet
+    const url = `${COINGECKO_API_URL}?vs_currency=usd&ids=zcash`;
+    const res = await fetch(url);
     const data = await res.json();
-    circulatingSupply = data.data.ZEC.circulating_supply;
-    return circulatingSupply;
+    if (data && data.length > 0) {
+      circulatingSupply = data[0].circulating_supply;
+      return circulatingSupply;
+    }
+    return null;
   } catch (err) {
-    console.error('Failed to fetch circulating supply from CMC:', err);
+    console.error('Failed to fetch circulating supply from CoinGecko:', err);
     return null;
   }
 }
@@ -1162,6 +1188,7 @@ function getChartRefreshInterval() {
 }
 
 function lockYAxisForHourly(data) {
+  if (!data || data.length === 0) return;
   const min = Math.min(...data);
   const max = Math.max(...data);
   const padding = (max - min) * 0.1; // 10% padding
@@ -1170,6 +1197,8 @@ function lockYAxisForHourly(data) {
 }
 
 function applyYAxisLock() {
+  if (!priceChart || !priceChart.options || !priceChart.options.scales || !priceChart.options.scales.y) return;
+
   if (priceChartTimeframe === '1h' && hourlyYAxisLocked.min !== null) {
     priceChart.options.scales.y.min = hourlyYAxisLocked.min;
     priceChart.options.scales.y.max = hourlyYAxisLocked.max;
