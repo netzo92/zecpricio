@@ -4,13 +4,17 @@
   "description": "A simple app that displays the current price of ZEC (Zcash)",
   "main": "app.js",
   "scripts": {
-    "start": "npx serve -l 3000 .",
-    "dev": "npx serve -l 3000 .",
+    "start": "npx netlify dev",
+    "dev": "npx netlify dev",
     "fetch-shielded": "node scripts/fetch-shielded-data.js",
     "update-shielded": "node scripts/update-shielded-daily.js"
   },
-  "keywords": ["zec", "zcash", "price", "cryptocurrency"],
+  "keywords": [
+    "zec",
+    "zcash",
+    "price",
+    "cryptocurrency"
+  ],
   "author": "",
   "license": "MIT"
 }
-

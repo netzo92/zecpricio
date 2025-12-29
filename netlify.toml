@@ -20,3 +20,8 @@
   from = "/api/shielded-hourly"
   to = "/.netlify/functions/shielded-hourly"
   status = 200
+
+[[redirects]]
+  from = "/api/cmc"
+  to = "/.netlify/functions/cmc"
+  status = 200

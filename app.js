@@ -8,9 +8,12 @@
 const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws/zecusdt@trade';
 
 // CoinGecko via Netlify function (hides API key)
+// CoinMarketCap via Netlify function
+const CMC_PROXY = '/api/cmc';
+const CMC_QUOTES_URL = `${CMC_PROXY}?endpoint=cryptocurrency/quotes/latest&symbol=ZEC`;
+
+// CoinGecko via Netlify function (still used for charts)
 const COINGECKO_PROXY = '/api/coingecko';
-const COINGECKO_PRICE_URL = `${COINGECKO_PROXY}?endpoint=simple/price?ids=zcash%26vs_currencies=usd%26include_24hr_change=true`;
-const COINGECKO_COIN_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash`;
 const COINGECKO_CHART_1Y_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=365`;
 const COINGECKO_CHART_1MO_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=30`;
 const COINGECKO_CHART_1D_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=1`;
@@ -130,10 +133,10 @@ function createDigitSlot(char, index) {
   const slot = document.createElement('span');
   slot.className = 'digit-slot';
   slot.dataset.index = index;
-  
+
   const roll = document.createElement('span');
   roll.className = 'digit-roll';
-  
+
   if (/\d/.test(char)) {
     for (let i = 0; i <= 9; i++) {
       const span = document.createElement('span');
@@ -146,14 +149,14 @@ function createDigitSlot(char, index) {
     span.textContent = char;
     roll.appendChild(span);
   }
-  
+
   slot.appendChild(roll);
   return slot;
 }
 
 function updatePriceDisplay(newPrice) {
   const newChars = newPrice.split('');
-  
+
   if (newChars.length !== currentPriceChars.length) {
     priceEl.innerHTML = '';
     newChars.forEach((char, i) => {
@@ -162,7 +165,7 @@ function updatePriceDisplay(newPrice) {
     currentPriceChars = newChars;
     return;
   }
-  
+
   const slots = priceEl.querySelectorAll('.digit-slot');
   newChars.forEach((char, i) => {
     if (char !== currentPriceChars[i]) {
@@ -172,7 +175,7 @@ function updatePriceDisplay(newPrice) {
       }
     }
   });
-  
+
   currentPriceChars = newChars;
 }
 
@@ -182,10 +185,10 @@ function updatePriceDisplay(newPrice) {
 
 function updateLiveIndicator() {
   if (!priceChart || !priceChart.data.datasets[0].data.length) return;
-  
+
   const meta = priceChart.getDatasetMeta(0);
   const lastPoint = meta.data[meta.data.length - 1];
-  
+
   if (lastPoint) {
     liveIndicator.style.left = `${lastPoint.x}px`;
     liveIndicator.style.top = `${lastPoint.y}px`;
@@ -224,10 +227,10 @@ async function fetchShieldedHourlyData() {
 // Filter shielded data by timeframe
 function getShieldedDataForTimeframe(timeframe) {
   if (!shieldedDataFull) return [];
-  
+
   const now = Date.now() / 1000;
   let cutoff;
-  
+
   switch (timeframe) {
     case '1d':
       return null; // Will fetch from hourly endpoint
@@ -241,21 +244,21 @@ function getShieldedDataForTimeframe(timeframe) {
     default:
       return shieldedDataFull;
   }
-  
+
   return shieldedDataFull.filter(d => d.t >= cutoff);
 }
 
 // Update shielded timeframe button with % change
 function updateShieldedBtn(data) {
   const label = SHIELDED_TIMEFRAME_LABELS[shieldedChartTimeframe];
-  
+
   // For "All" timeframe, just show label (% from genesis is meaningless)
   if (shieldedChartTimeframe === 'all') {
     shieldedChangeBtn.textContent = label;
     shieldedChangeBtn.classList.remove('up', 'down');
     return;
   }
-  
+
   // Calculate % change if we have data
   let percentChange = 0;
   const chartData = data || shieldedData;
@@ -270,13 +273,13 @@ function updateShieldedBtn(data) {
       percentChange = ((lastValue - firstValue) / firstValue) * 100;
     }
   }
-  
+
   const isUp = percentChange >= 0;
   // Use 2 decimal places to capture small daily changes (supply is ~5M ZEC)
   const absChange = Math.abs(percentChange);
   const decimals = absChange < 0.1 ? 2 : 1;
   const formatted = `${absChange.toFixed(decimals)}% · ${label}`;
-  
+
   shieldedChangeBtn.textContent = formatted;
   shieldedChangeBtn.classList.remove('up', 'down');
   shieldedChangeBtn.classList.add(isUp ? 'up' : 'down');
@@ -286,41 +289,41 @@ function updateShieldedBtn(data) {
 async function toggleShieldedChartTimeframe() {
   const currentIndex = SHIELDED_TIMEFRAME_CYCLE.indexOf(shieldedChartTimeframe);
   shieldedChartTimeframe = SHIELDED_TIMEFRAME_CYCLE[(currentIndex + 1) % SHIELDED_TIMEFRAME_CYCLE.length];
-  
+
   let newData;
   if (shieldedChartTimeframe === '1d') {
     // Show loading state for API fetch
     shieldedChangeBtn.textContent = '· · ·';
     shieldedChangeBtn.classList.add('loading');
     shieldedChangeBtn.classList.remove('up', 'down');
-    
+
     // Fetch hourly data for 1D view
     newData = await fetchShieldedHourlyData();
-    
+
     shieldedChangeBtn.classList.remove('loading');
   } else {
     // Filter existing data (instant, no loading needed)
     newData = getShieldedDataForTimeframe(shieldedChartTimeframe);
   }
-  
+
   if (newData && newData.length > 0) {
     shieldedData = newData;
-    
+
     // Update chart
     const labels = shieldedData.map(d => new Date(d.t * 1000));
     const data = shieldedData.map(d => d.v);
-    
+
     // For M/Y/All, append live value as final point (keeps chart current)
     if (shieldedChartTimeframe !== '1d' && currentShieldedValue > 0) {
       labels.push(new Date());
       data.push(currentShieldedValue);
     }
-    
+
     shieldedChart.data.labels = labels;
     shieldedChart.data.datasets[0].data = data;
     shieldedChart.update();
   }
-  
+
   // Update button with % change
   updateShieldedBtn(newData);
 }
@@ -336,7 +339,7 @@ async function fetchLiveShieldedSupply() {
     });
     const heightData = await heightRes.json();
     const height = heightData.result;
-    
+
     // Get block with valuePools
     const blockRes = await fetch(ZCASH_RPC_PROXY, {
       method: 'POST',
@@ -345,15 +348,15 @@ async function fetchLiveShieldedSupply() {
     });
     const blockData = await blockRes.json();
     const block = blockData.result;
-    
+
     // Calculate total shielded
     const pools = block.valuePools || [];
     const sprout = pools.find(p => p.id === 'sprout')?.chainValueZat || 0;
     const sapling = pools.find(p => p.id === 'sapling')?.chainValueZat || 0;
     const orchard = pools.find(p => p.id === 'orchard')?.chainValueZat || 0;
     const total = (sprout + sapling + orchard) / 1e8;
-    
-    return { height, time: block.time, total, sprout: sprout/1e8, sapling: sapling/1e8, orchard: orchard/1e8 };
+
+    return { height, time: block.time, total, sprout: sprout / 1e8, sapling: sapling / 1e8, orchard: orchard / 1e8 };
   } catch (err) {
     console.error('Failed to fetch live shielded supply:', err);
     return null;
@@ -367,7 +370,7 @@ let shieldedAnimationFrame = null;
 function animateShieldedValue(targetValue, duration = 800) {
   const startValue = currentShieldedValue;
   const difference = targetValue - startValue;
-  
+
   // Skip animation if no change or first load
   if (difference === 0) return;
   if (startValue === 0) {
@@ -375,33 +378,33 @@ function animateShieldedValue(targetValue, duration = 800) {
     shieldedValueEl.textContent = formatShieldedValue(targetValue);
     return;
   }
-  
+
   // Flash green/red based on direction
   shieldedValueEl.classList.remove('flash-up', 'flash-down');
   void shieldedValueEl.offsetWidth; // Force reflow
   shieldedValueEl.classList.add(difference > 0 ? 'flash-up' : 'flash-down');
-  
+
   setTimeout(() => {
     shieldedValueEl.classList.remove('flash-up', 'flash-down');
   }, duration);
-  
+
   const startTime = performance.now();
-  
+
   // Cancel any existing animation
   if (shieldedAnimationFrame) {
     cancelAnimationFrame(shieldedAnimationFrame);
   }
-  
+
   function animate(currentTime) {
     const elapsed = currentTime - startTime;
     const progress = Math.min(elapsed / duration, 1);
-    
+
     // Ease-out cubic for smooth deceleration
     const easeOut = 1 - Math.pow(1 - progress, 3);
-    
+
     const currentValue = startValue + (difference * easeOut);
     shieldedValueEl.textContent = formatShieldedValue(currentValue);
-    
+
     if (progress < 1) {
       shieldedAnimationFrame = requestAnimationFrame(animate);
     } else {
@@ -409,32 +412,32 @@ function animateShieldedValue(targetValue, duration = 800) {
       shieldedValueEl.textContent = formatShieldedValue(targetValue);
     }
   }
-  
+
   shieldedAnimationFrame = requestAnimationFrame(animate);
 }
 
 // Update shielded display with live data
 function updateLiveShieldedDisplay(data) {
   if (!data) return;
-  
+
   // Animate headline value
   animateShieldedValue(data.total);
-  
+
   // Update percentage of supply shielded
   if (circulatingSupply && circulatingSupply > 0) {
     const percent = (data.total / circulatingSupply) * 100;
     shieldedPercentEl.textContent = `${Math.round(percent)}%`;
   }
-  
+
   // Update chart's live tip (for M/Y/All timeframes only)
   if (shieldedChart && shieldedData && shieldedChartTimeframe !== '1d') {
     const labels = shieldedData.map(d => new Date(d.t * 1000));
     const chartData = shieldedData.map(d => d.v);
-    
+
     // Append live data point as the tip
     labels.push(new Date(data.time * 1000));
     chartData.push(data.total);
-    
+
     shieldedChart.data.labels = labels;
     shieldedChart.data.datasets[0].data = chartData;
     shieldedChart.update('none');
@@ -443,24 +446,24 @@ function updateLiveShieldedDisplay(data) {
 
 function initShieldedChart() {
   if (!shieldedData || shieldedData.length === 0) return;
-  
+
   const labels = shieldedData.map(d => new Date(d.t * 1000));
   const data = shieldedData.map(d => d.v);
-  
+
   // Set initial headline value (no animation on first load)
   const latestValue = shieldedData[shieldedData.length - 1].v;
   currentShieldedValue = latestValue;
   shieldedValueEl.textContent = formatShieldedValue(latestValue);
-  
+
   // Update percentage of supply shielded
   if (circulatingSupply && circulatingSupply > 0) {
     const percent = (latestValue / circulatingSupply) * 100;
     shieldedPercentEl.textContent = `${Math.round(percent)}%`;
   }
-  
+
   // Set initial timeframe button label
   updateShieldedBtn();
-  
+
   shieldedChart = new Chart(shieldedChartCanvas, {
     type: 'line',
     data: {
@@ -536,18 +539,24 @@ function initShieldedChart() {
 
 async function fetchInitialPrice() {
   try {
-    const res = await fetch(COINGECKO_PRICE_URL);
+    const res = await fetch(CMC_QUOTES_URL);
     const data = await res.json();
-    
+    const zecData = data.data.ZEC;
+
     // Update 24h change display
-    const change24h = data.zcash.usd_24h_change;
+    const change24h = zecData.quote.USD.percent_change_24h;
     if (change24h !== undefined) {
       updatePriceChangeBtn(change24h);
     }
-    
-    return data.zcash.usd;
+
+    // Update circulating supply if not already set
+    if (zecData.circulating_supply) {
+      circulatingSupply = zecData.circulating_supply;
+    }
+
+    return zecData.quote.USD.price;
   } catch (err) {
-    console.error('Failed to fetch initial price:', err);
+    console.error('Failed to fetch initial price from CMC:', err);
     return null;
   }
 }
@@ -559,7 +568,7 @@ function updatePriceChangeBtn(change) {
   const isUp = change >= 0;
   const label = TIMEFRAME_LABELS[priceChartTimeframe];
   const percentText = `${Math.abs(change).toFixed(2)}%`;
-  
+
   // Use innerHTML to style the label differently
   priceChangeBtn.innerHTML = `<span class="pct">${percentText}</span> · <span class="tf-label">${label}</span>`;
   priceChangeBtn.classList.remove('up', 'down');
@@ -571,22 +580,22 @@ async function togglePriceChartTimeframe() {
   // Cycle to next timeframe: 1d → 1m → 1y → 1d...
   const currentIndex = TIMEFRAME_CYCLE.indexOf(priceChartTimeframe);
   priceChartTimeframe = TIMEFRAME_CYCLE[(currentIndex + 1) % TIMEFRAME_CYCLE.length];
-  
+
   // Hide live indicator immediately
   liveIndicator.style.opacity = '0';
-  
+
   // Add loading state to button
   priceChangeBtn.style.opacity = '0.5';
-  
+
   // Fetch new chart data
   await fetchPriceChartData(priceChartTimeframe);
-  
+
   // Update chart with smooth animation
   if (priceChart && priceHistoricalData) {
     const { labels, data } = getPriceChartDataWithLiveTip();
     priceChart.data.labels = labels;
     priceChart.data.datasets[0].data = data;
-    
+
     // Lock y-axis for 1H to prevent jitter on refresh, reset for others
     if (priceChartTimeframe === '1h') {
       lockYAxisForHourly(data);
@@ -595,22 +604,22 @@ async function togglePriceChartTimeframe() {
       hourlyYAxisLocked = { min: null, max: null };
       applyYAxisLock();
     }
-    
+
     // Update chart with animation
     priceChart.update();
-    
+
     // Reposition and show indicator after animation completes (400ms)
     setTimeout(() => {
       updateLiveIndicator();
       liveIndicator.style.opacity = '1';
     }, 450);
-    
+
     // Calculate % change for current timeframe
     if (data.length >= 2) {
       const firstPrice = data[0];
       const lastPrice = data[data.length - 1];
       const percentChange = ((lastPrice - firstPrice) / firstPrice) * 100;
-      
+
       // Animate button content change
       priceChangeBtn.style.opacity = '0';
       setTimeout(() => {
@@ -629,12 +638,15 @@ shieldedChangeBtn.addEventListener('click', toggleShieldedChartTimeframe);
 
 async function fetchCirculatingSupply() {
   try {
-    const res = await fetch(COINGECKO_COIN_URL);
+    // If we already have it from the initial price fetch, use it
+    if (circulatingSupply) return circulatingSupply;
+
+    const res = await fetch(CMC_QUOTES_URL);
     const data = await res.json();
-    circulatingSupply = data.market_data?.circulating_supply;
+    circulatingSupply = data.data.ZEC.circulating_supply;
     return circulatingSupply;
   } catch (err) {
-    console.error('Failed to fetch circulating supply:', err);
+    console.error('Failed to fetch circulating supply from CMC:', err);
     return null;
   }
 }
@@ -646,7 +658,7 @@ async function fetchPriceChartData(timeframe = '1d') {
     else if (timeframe === '1d') url = COINGECKO_CHART_1D_URL;
     else if (timeframe === '1mo') url = COINGECKO_CHART_1MO_URL;
     else url = COINGECKO_CHART_1Y_URL;
-    
+
     const res = await fetch(url);
     const data = await res.json();
     priceHistoricalData = data.prices;
@@ -659,21 +671,21 @@ async function fetchPriceChartData(timeframe = '1d') {
 
 function getPriceChartDataWithLiveTip() {
   if (!priceHistoricalData) return { labels: [], data: [] };
-  
+
   const labels = priceHistoricalData.map(p => new Date(p[0]));
   const data = priceHistoricalData.map(p => p[1]);
-  
+
   if (livePrice !== null) {
     labels.push(new Date());
     data.push(livePrice);
   }
-  
+
   return { labels, data };
 }
 
 function updatePriceChartLiveTip() {
   if (!priceChart || !priceHistoricalData) return;
-  
+
   const { labels, data } = getPriceChartDataWithLiveTip();
   priceChart.data.labels = labels;
   priceChart.data.datasets[0].data = data;
@@ -683,9 +695,9 @@ function updatePriceChartLiveTip() {
 
 function initPriceChart() {
   if (!priceHistoricalData) return;
-  
+
   const { labels, data } = getPriceChartDataWithLiveTip();
-  
+
   priceChart = new Chart(priceChartCanvas, {
     type: 'line',
     data: {
@@ -774,12 +786,12 @@ function updatePrice(price) {
     priceEl.classList.remove('flash-up', 'flash-down');
     void priceEl.offsetWidth;
     priceEl.classList.add(price > previousPrice ? 'flash-up' : 'flash-down');
-    
+
     setTimeout(() => {
       priceEl.classList.remove('flash-up', 'flash-down');
     }, 600);
   }
-  
+
   previousPrice = price;
   livePrice = price;
   updatePriceDisplay(formatPrice(price));
@@ -790,16 +802,22 @@ function updatePrice(price) {
 // Fallback: poll CoinGecko every 10 seconds
 function startPricePolling() {
   if (pollingInterval) return; // Already polling
-  
-  console.log('WebSocket unavailable, falling back to polling');
+
+  console.log('WebSocket unavailable, falling back to CMC polling');
   pollingInterval = setInterval(async () => {
     try {
-      const res = await fetch(COINGECKO_PRICE_URL);
+      const res = await fetch(CMC_QUOTES_URL);
       const data = await res.json();
-      const price = data.zcash.usd;
+      const zecData = data.data.ZEC;
+      const price = zecData.quote.USD.price;
+      const change24h = zecData.quote.USD.percent_change_24h;
+
       updatePrice(price);
+      if (priceChartTimeframe === '1d') {
+        updatePriceChangeBtn(change24h);
+      }
     } catch (err) {
-      console.error('Price poll failed:', err);
+      console.error('Polling error:', err);
     }
   }, 10000); // Every 10 seconds
 }
@@ -813,32 +831,32 @@ function stopPricePolling() {
 
 function connectPriceStream() {
   const ws = new WebSocket(BINANCE_WS_URL);
-  
+
   ws.onopen = () => {
     wsConnected = true;
     wsRetries = 0;
     stopPricePolling(); // Stop polling if WebSocket connects
   };
-  
+
   ws.onmessage = (event) => {
     const trade = JSON.parse(event.data);
     const price = parseFloat(trade.p);
     updatePrice(price);
   };
-  
+
   ws.onclose = (event) => {
     wsConnected = false;
-    
+
     // If blocked (451) or too many retries, switch to polling
     if (wsRetries >= 3) {
       startPricePolling();
       return;
     }
-    
+
     wsRetries++;
     setTimeout(connectPriceStream, 2000);
   };
-  
+
   ws.onerror = (err) => {
     console.error('WebSocket error:', err);
     wsConnected = false;
@@ -871,10 +889,10 @@ async function init() {
     fetchPriceChartData(priceChartTimeframe),
     fetchCirculatingSupply()
   ]);
-  
+
   // Initialize shielded chart and value
   initShieldedChart();
-  
+
   // Initialize price display and chart
   if (initialPrice !== null) {
     livePrice = initialPrice;
@@ -882,7 +900,7 @@ async function init() {
     updatePriceDisplay(formatPrice(initialPrice));
   }
   initPriceChart();
-  
+
   // Lock y-axis for initial 1H view
   if (priceChartTimeframe === '1h' && priceHistoricalData) {
     const { data } = getPriceChartDataWithLiveTip();
@@ -890,16 +908,16 @@ async function init() {
     applyYAxisLock();
     priceChart.update('none');
   }
-  
+
   // Fetch live shielded supply (updates headline and chart tip)
   const liveShielded = await fetchLiveShieldedSupply();
   if (liveShielded) {
     updateLiveShieldedDisplay(liveShielded);
   }
-  
+
   // Reveal UI
   revealUI();
-  
+
   // Connect WebSocket for live price updates
   connectPriceStream();
 }
@@ -932,22 +950,22 @@ function applyYAxisLock() {
 
 async function refreshPriceChart() {
   await fetchPriceChartData(priceChartTimeframe);
-  
+
   // Update chart silently (no animation) for background refreshes
   if (priceChart && priceHistoricalData) {
     const { labels, data } = getPriceChartDataWithLiveTip();
     priceChart.data.labels = labels;
     priceChart.data.datasets[0].data = data;
-    
+
     // For 1H, keep y-axis locked to prevent vertical jitter
     if (priceChartTimeframe === '1h') {
       applyYAxisLock();
     }
-    
+
     priceChart.update('none'); // No animation for silent refresh
     updateLiveIndicator();
   }
-  
+
   setTimeout(refreshPriceChart, getChartRefreshInterval());
 }
 
@@ -971,12 +989,12 @@ setInterval(updatePollProgress, 500);
 async function pollShieldedSupply() {
   // Flash the bar briefly to indicate polling
   pollProgressBar.classList.add('polling');
-  
+
   const liveShielded = await fetchLiveShieldedSupply();
   if (liveShielded) {
     updateLiveShieldedDisplay(liveShielded);
   }
-  
+
   // Reset progress bar
   pollProgressBar.classList.remove('polling');
   pollProgressBar.style.width = '0%';
