@@ -25,3 +25,13 @@
   from = "/api/cmc"
   to = "/.netlify/functions/cmc"
   status = 200
+
+[[redirects]]
+  from = "/api/pond-markets"
+  to = "/.netlify/functions/pond_markets"
+  status = 200
+
+[[redirects]]
+  from = "/api/solana-rpc"
+  to = "/.netlify/functions/solana-rpc"
+  status = 200

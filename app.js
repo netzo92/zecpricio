@@ -12,6 +12,8 @@ const BINANCE_WS_URL = 'wss://stream.binance.com:9443/ws/zecusdt@trade';
 const CMC_PROXY = '/api/cmc';
 const CMC_QUOTES_URL = `${CMC_PROXY}?endpoint=cryptocurrency/quotes/latest&symbol=ZEC`;
 
+const POND_API_URL = '/api/pond-markets';
+
 // CoinGecko via Netlify function (still used for charts)
 const COINGECKO_PROXY = '/api/coingecko';
 const COINGECKO_CHART_1Y_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart&vs_currency=usd&days=365`;
@@ -170,6 +172,7 @@ function switchMode(mode) {
 
     // Initial UI update for predict
     updatePredictUI();
+    fetchPondMarkets();
   }
 }
 
@@ -1366,3 +1369,176 @@ setInterval(updatePredictTimer, 1000);
 if (!currentRound.entryPrice && livePrice) {
   currentRound.entryPrice = livePrice;
 }
+
+// ============================================================================
+// Pond Prediction Markets
+// ============================================================================
+
+async function fetchPondMarkets() {
+  const pondMarketsList = document.getElementById('pond-markets-list');
+  if (!pondMarketsList) return;
+
+  try {
+    const response = await fetch(POND_API_URL);
+    if (response.status === 429) {
+      pondMarketsList.innerHTML = '<div class="error-markets">Rate limit exceeded. Please wait a few seconds.</div>';
+      return;
+    }
+    if (!response.ok) throw new Error('Failed to fetch markets');
+    const data = await response.json();
+
+    // Filter for ZEC related markets
+    const zecMarkets = (data.events || []).filter(event =>
+      (event.title && (event.title.toUpperCase().includes('ZEC') || event.title.toUpperCase().includes('ZCASH'))) ||
+      (event.ticker && event.ticker.toUpperCase().includes('ZEC'))
+    );
+
+    // Sort by closing soonest
+    zecMarkets.sort((a, b) => {
+      const timeA = a.markets?.[0]?.closeTime || Infinity;
+      const timeB = b.markets?.[0]?.closeTime || Infinity;
+      return timeA - timeB;
+    });
+
+    renderPondMarkets(zecMarkets);
+  } catch (error) {
+    console.error('Error fetching prediction markets:', error);
+    pondMarketsList.innerHTML = '<div class="error-markets">Failed to load live markets.</div>';
+  }
+}
+
+function renderPondMarkets(events) {
+  const pondMarketsList = document.getElementById('pond-markets-list');
+  if (!pondMarketsList) return;
+
+  if (!events || events.length === 0) {
+    pondMarketsList.innerHTML = '<div class="no-markets">No active prediction markets found.</div>';
+    return;
+  }
+
+  pondMarketsList.innerHTML = '';
+  events.forEach(event => {
+    const card = document.createElement('div');
+    card.className = 'market-card';
+
+    const market = event.markets?.[0];
+    const closeTime = market ? new Date(market.closeTime * 1000) : null;
+    const timeRemaining = closeTime ? getTimeRemainingString(closeTime) : 'N/A';
+
+    card.innerHTML = `
+      <div class="market-ticker">${event.ticker}</div>
+      <div class="market-title">${event.title}</div>
+      <div class="market-subtitle">${event.subtitle || ''}</div>
+      <div class="market-footer">
+        <div class="market-timer">Ends in: ${timeRemaining}</div>
+        <div class="market-status">${market?.status || 'active'}</div>
+      </div>
+    `;
+    pondMarketsList.appendChild(card);
+  });
+}
+
+function getTimeRemainingString(endTime) {
+  const total = endTime.getTime() - Date.now();
+  if (total <= 0) return 'Ended';
+
+  const minutes = Math.floor((total / 1000 / 60) % 60);
+  const hours = Math.floor((total / (1000 * 60 * 60)) % 24);
+  const days = Math.floor(total / (1000 * 60 * 60 * 24));
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+// ============================================================================
+// Wallet Integration
+// ============================================================================
+
+const connectWalletBtn = document.getElementById('connect-wallet-btn');
+const walletInfoEl = document.getElementById('wallet-info');
+const walletAddressEl = document.getElementById('wallet-address');
+
+// Handle wallet connection button click
+if (connectWalletBtn) {
+  connectWalletBtn.addEventListener('click', async () => {
+    console.log('Connect wallet button clicked');
+
+    // If already connected, disconnect
+    if (window.walletConnected) {
+      connectWalletBtn.textContent = 'Disconnecting...';
+      const result = await window.disconnectSolanaWallet();
+      connectWalletBtn.textContent = 'Connect Wallet';
+      return;
+    }
+
+    // Show connecting state
+    connectWalletBtn.textContent = 'Connecting...';
+
+    // Attempt connection
+    const result = await window.connectSolanaWallet();
+
+    if (result.success) {
+      // UI update handled by event listener below
+    } else {
+      connectWalletBtn.textContent = result.error?.includes('No Solana') ? 'Get Phantom' : 'Failed';
+      setTimeout(() => {
+        connectWalletBtn.textContent = 'Connect Wallet';
+      }, 2000);
+    }
+  });
+}
+
+// Listen for wallet connection events
+window.addEventListener('walletConnected', async (e) => {
+  const address = e.detail.address;
+  const shortAddress = `${address.slice(0, 4)}...${address.slice(-4)}`;
+
+  // Update UI
+  if (connectWalletBtn) connectWalletBtn.style.display = 'none';
+  if (walletInfoEl) walletInfoEl.style.display = 'flex';
+  if (walletAddressEl) walletAddressEl.textContent = shortAddress;
+  if (walletBalanceEl) {
+    walletBalanceEl.style.display = 'block';
+    walletBalanceEl.textContent = 'Loading...';
+  }
+
+  console.log('Wallet connected UI updated:', shortAddress);
+
+  // Fetch SOL balance
+  await window.getSolanaBalance(address);
+});
+
+// Listen for balance updates
+window.addEventListener('walletBalanceUpdated', (e) => {
+  const balance = e.detail.balance;
+  if (walletBalanceEl) {
+    // Format balance nicely
+    const formattedBalance = balance.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4
+    });
+    walletBalanceEl.textContent = `◎ ${formattedBalance} SOL`;
+  }
+  console.log('Wallet balance updated:', balance, 'SOL');
+});
+
+// Listen for balance fetch errors
+window.addEventListener('walletBalanceError', (e) => {
+  if (walletBalanceEl) {
+    walletBalanceEl.textContent = 'Balance unavailable';
+  }
+  console.error('Balance fetch error:', e.detail.error);
+});
+
+window.addEventListener('walletDisconnected', () => {
+  // Update UI
+  if (connectWalletBtn) connectWalletBtn.style.display = 'block';
+  if (walletInfoEl) walletInfoEl.style.display = 'none';
+  if (walletBalanceEl) {
+    walletBalanceEl.style.display = 'none';
+    walletBalanceEl.textContent = '';
+  }
+
+  console.log('Wallet disconnected UI updated');
+});

@@ -28,7 +28,7 @@
 
 <body>
   <div class="splash" id="splash">
-    <span>encrypt the money</span>
+    <span>zillions</span>
     <div class="loading-dots"></div>
   </div>
 
@@ -114,7 +114,11 @@
       <div class="view-content" id="predict-view">
         <div class="predict-header">
           <div class="user-stats">
-            <span class="wallet-balance" id="wallet-balance">$1,000.00</span>
+            <span class="wallet-balance" id="wallet-balance" style="display: none;">$0.00</span>
+            <button class="connect-wallet-btn" id="connect-wallet-btn">Connect Wallet</button>
+            <div class="wallet-info" id="wallet-info" style="display: none;">
+              <span class="wallet-address" id="wallet-address"></span>
+            </div>
           </div>
           <div class="round-timer-wrapper">
             <span class="timer-label">next round in</span>
@@ -160,6 +164,14 @@
             <!-- Round cards injected here -->
           </div>
         </div>
+
+        <!-- Prediction Markets -->
+        <div class="pond-markets-section">
+          <div class="section-title">Live Prediction Markets</div>
+          <div class="markets-grid" id="pond-markets-list">
+            <div class="loading-markets">Loading live markets...</div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -173,6 +185,136 @@
   </button>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // Simple Solana Wallet Connection (works with Phantom, Solflare, etc.)
+    // No bundler required - uses window.solana injected by wallet extensions
+
+    window.walletConnected = false;
+    window.walletAddress = null;
+
+    window.connectSolanaWallet = async function () {
+      try {
+        // Check for Phantom or other Solana wallets
+        const provider = window.phantom?.solana || window.solana;
+
+        if (!provider) {
+          // No wallet detected - show install prompt
+          window.open('https://phantom.app/', '_blank');
+          return { success: false, error: 'No Solana wallet detected. Install Phantom!' };
+        }
+
+        if (!provider.isPhantom && !provider.isSolflare) {
+          console.log('Detected Solana provider:', provider);
+        }
+
+        // Request connection
+        const response = await provider.connect();
+        const address = response.publicKey.toString();
+
+        window.walletConnected = true;
+        window.walletAddress = address;
+
+        console.log('Wallet connected:', address);
+
+        // Dispatch custom event for UI to react
+        window.dispatchEvent(new CustomEvent('walletConnected', {
+          detail: { address }
+        }));
+
+        return { success: true, address };
+      } catch (err) {
+        console.error('Wallet connection failed:', err);
+        return { success: false, error: err.message };
+      }
+    };
+
+    window.disconnectSolanaWallet = async function () {
+      try {
+        const provider = window.phantom?.solana || window.solana;
+        if (provider) {
+          await provider.disconnect();
+        }
+        window.walletConnected = false;
+        window.walletAddress = null;
+        window.walletBalance = null;
+
+        window.dispatchEvent(new CustomEvent('walletDisconnected'));
+        return { success: true };
+      } catch (err) {
+        console.error('Wallet disconnect failed:', err);
+        return { success: false, error: err.message };
+      }
+    };
+
+    // Fetch SOL balance for a wallet address (via Netlify proxy to avoid CORS)
+    window.getSolanaBalance = async function (address) {
+      try {
+        console.log('Fetching SOL balance via proxy for:', address);
+        const response = await fetch('/api/solana-rpc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getBalance',
+            params: [address]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Proxy returned ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error.message || data.error);
+        }
+
+        if (data.result && data.result.value !== undefined) {
+          // Convert lamports to SOL (1 SOL = 1,000,000,000 lamports)
+          const solBalance = data.result.value / 1_000_000_000;
+          window.walletBalance = solBalance;
+
+          // Dispatch balance update event
+          window.dispatchEvent(new CustomEvent('walletBalanceUpdated', {
+            detail: { balance: solBalance, lamports: data.result.value }
+          }));
+
+          console.log('Balance fetched successfully:', solBalance, 'SOL');
+          return { success: true, balance: solBalance };
+        }
+
+        throw new Error('Invalid response from Solana RPC');
+      } catch (err) {
+        console.error('Failed to fetch SOL balance:', err.message);
+        window.dispatchEvent(new CustomEvent('walletBalanceError', {
+          detail: { error: err.message }
+        }));
+        return { success: false, error: err.message };
+      }
+    };
+
+    // Check if already connected on page load
+    window.addEventListener('load', async () => {
+      const provider = window.phantom?.solana || window.solana;
+      if (provider?.isConnected) {
+        try {
+          const response = await provider.connect({ onlyIfTrusted: true });
+          window.walletConnected = true;
+          window.walletAddress = response.publicKey.toString();
+          window.dispatchEvent(new CustomEvent('walletConnected', {
+            detail: { address: window.walletAddress }
+          }));
+
+          // Fetch balance after auto-connect
+          await window.getSolanaBalance(window.walletAddress);
+        } catch (err) {
+          // User hasn't connected before or rejected silent connect
+        }
+      }
+    });
+  </script>
   <script src="app.js"></script>
 </body>
 

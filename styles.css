@@ -826,3 +826,143 @@ canvas {
   opacity: 0.3;
   font-size: 10px;
 }
+
+/* Pond Markets Section */
+.pond-markets-section {
+  margin-top: 40px;
+  text-align: left;
+}
+
+.markets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.market-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.market-card:hover {
+  border-color: var(--zec-yellow);
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.market-ticker {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--zec-yellow);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.market-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.market-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.4;
+}
+
+.market-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.market-timer {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.market-status {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.loading-markets,
+.no-markets,
+.error-markets {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 13px;
+}
+/* Wallet Integration */
+.connect-wallet-btn {
+  background: var(--zec-yellow);
+  color: #000;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(244, 183, 40, 0.2);
+  font-family: inherit;
+}
+
+.connect-wallet-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(244, 183, 40, 0.3);
+  filter: brightness(1.1);
+}
+
+.connect-wallet-btn:active {
+  transform: translateY(0);
+}
+
+.wallet-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  padding: 8px 16px;
+  border-radius: 100px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.wallet-address {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: "Inter", monospace;
+}
+
+.user-stats {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
