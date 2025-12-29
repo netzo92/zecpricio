@@ -14,10 +14,10 @@ const CMC_QUOTES_URL = `${CMC_PROXY}?endpoint=cryptocurrency/quotes/latest&symbo
 
 // CoinGecko via Netlify function (still used for charts)
 const COINGECKO_PROXY = '/api/coingecko';
-const COINGECKO_CHART_1Y_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=365`;
-const COINGECKO_CHART_1MO_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=30`;
-const COINGECKO_CHART_1D_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=1`;
-const COINGECKO_CHART_1H_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart?vs_currency=usd%26days=0.0417`; // ~1 hour
+const COINGECKO_CHART_1Y_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart&vs_currency=usd&days=365`;
+const COINGECKO_CHART_1MO_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart&vs_currency=usd&days=30`;
+const COINGECKO_CHART_1D_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart&vs_currency=usd&days=1`;
+const COINGECKO_CHART_1H_URL = `${COINGECKO_PROXY}?endpoint=coins/zcash/market_chart&vs_currency=usd&days=0.0417`; // ~1 hour
 
 // Shielded pool data
 const SHIELDED_DATA_URL = 'shielded-pool-data.json';
