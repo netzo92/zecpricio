@@ -60,6 +60,23 @@ const statVolEl = document.getElementById('stat-vol');
 const currencyToggleBtn = document.getElementById('currency-toggle');
 const currencySymbolEl = document.getElementById('currency-symbol');
 
+// Mode Tabs
+const dashboardTab = document.getElementById('tab-dashboard');
+const predictTab = document.getElementById('tab-predict');
+const dashboardView = document.getElementById('dashboard-view');
+const predictView = document.getElementById('predict-view');
+
+// Predict UI Elements
+const walletBalanceEl = document.getElementById('wallet-balance');
+const roundEntryPriceEl = document.getElementById('round-entry-price');
+const roundLastPriceEl = document.getElementById('round-last-price');
+const roundPoolEl = document.getElementById('round-pool');
+const betUpBtn = document.getElementById('bet-up');
+const betDownBtn = document.getElementById('bet-down');
+const timerMEl = document.getElementById('timer-m');
+const timerSEl = document.getElementById('timer-s');
+const predictHistoryEl = document.getElementById('predict-history');
+
 // ============================================================================
 // State
 // ============================================================================
@@ -88,8 +105,20 @@ const TIMEFRAME_LABELS = { '1d': 'D', '1mo': 'M', '1y': 'Y', '1h': 'H' };
 let hourlyYAxisLocked = { min: null, max: null };
 
 // Currency State
-let currentCurrency = 'USD'; // 'USD' or 'BTC'
 let zecQuotes = null; // Store latest quotes from CMC
+
+// Predict Mode State
+let currentMode = 'dashboard';
+let walletBalance = parseFloat(localStorage.getItem('zec_wallet_balance')) || 1000;
+let predictHistory = JSON.parse(localStorage.getItem('zec_predict_history')) || [];
+let activeBet = null; // 'up', 'down', or null
+let currentRound = {
+  id: Date.now(),
+  entryPrice: null,
+  pool: 4000 + Math.floor(Math.random() * 1000),
+  startTime: Date.now(),
+  duration: 60000 // 1 minute rounds
+};
 
 // ============================================================================
 // View Toggle
@@ -122,6 +151,30 @@ function switchView() {
 }
 
 viewToggle.addEventListener('click', switchView);
+
+// Mode Toggle
+function switchMode(mode) {
+  currentMode = mode;
+  if (mode === 'dashboard') {
+    dashboardTab.classList.add('active');
+    predictTab.classList.remove('active');
+    dashboardView.classList.add('active');
+    predictView.classList.remove('active');
+    viewToggle.style.display = 'flex';
+  } else {
+    predictTab.classList.add('active');
+    dashboardTab.classList.remove('active');
+    predictView.classList.add('active');
+    dashboardView.classList.remove('active');
+    viewToggle.style.display = 'none';
+
+    // Initial UI update for predict
+    updatePredictUI();
+  }
+}
+
+dashboardTab.addEventListener('click', () => switchMode('dashboard'));
+predictTab.addEventListener('click', () => switchMode('predict'));
 
 // ============================================================================
 // Formatting Helpers
@@ -883,6 +936,10 @@ function updatePrice(price) {
   updatePriceChartLiveTip();
   document.title = `${currentCurrency === 'USD' ? '$' : '₿'}${formatPrice(price)} · ZEC`;
 
+  if (currentMode === 'predict') {
+    updatePredictUI();
+  }
+
   saveToCache(LAST_PRICE_KEY, price);
 }
 
@@ -1158,3 +1215,138 @@ async function pollShieldedSupply() {
 }
 
 setInterval(pollShieldedSupply, POLL_INTERVAL);
+
+// ============================================================================
+// Prediction Market Logic
+// ============================================================================
+
+function updatePredictUI() {
+  walletBalanceEl.textContent = `$${walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+  roundPoolEl.textContent = `$${currentRound.pool.toLocaleString()}`;
+
+  if (currentRound.entryPrice) {
+    roundEntryPriceEl.textContent = `$${currentRound.entryPrice.toFixed(2)}`;
+  } else {
+    roundEntryPriceEl.textContent = 'WAITING...';
+  }
+
+  if (livePrice) {
+    roundLastPriceEl.textContent = `$${livePrice.toFixed(2)}`;
+    // Highlight price based on entry
+    if (currentRound.entryPrice) {
+      roundLastPriceEl.style.color = livePrice >= currentRound.entryPrice ? '#22c55e' : '#ef4444';
+    } else {
+      roundLastPriceEl.style.color = '#fff';
+    }
+  }
+
+  // Update Bet buttons
+  betUpBtn.style.opacity = activeBet === 'down' ? '0.5' : '1';
+  betDownBtn.style.opacity = activeBet === 'up' ? '0.5' : '1';
+  betUpBtn.style.borderWidth = activeBet === 'up' ? '2px' : '1px';
+  betDownBtn.style.borderWidth = activeBet === 'down' ? '2px' : '1px';
+
+  renderPredictHistory();
+}
+
+function renderPredictHistory() {
+  predictHistoryEl.innerHTML = '';
+  predictHistory.slice(-5).reverse().forEach(round => {
+    const item = document.createElement('div');
+    item.className = `history-item ${round.outcome}`;
+
+    const time = new Date(round.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const profitText = round.outcome === 'win' ? `<span class="win-text">+$${round.profit}</span>` : `<span class="loss-text">-$${round.bet}</span>`;
+
+    item.innerHTML = `
+      <div class="round-info">
+        <span class="round-num">#${round.id % 1000}</span>
+        <span class="outcome ${round.outcome}-text">${round.outcome}</span>
+      </div>
+      <div class="round-result">
+        ${profitText}
+      </div>
+    `;
+    predictHistoryEl.appendChild(item);
+  });
+}
+
+function startNewRound() {
+  // Resolve previous round if any
+  if (currentRound.entryPrice && activeBet) {
+    const isWin = (activeBet === 'up' && livePrice >= currentRound.entryPrice) ||
+      (activeBet === 'down' && livePrice < currentRound.entryPrice);
+
+    const betAmount = 100; // Fixed bet for demo
+    let outcome = isWin ? 'win' : 'loss';
+    let profit = isWin ? betAmount * 0.9 : 0; // 90% payout
+
+    if (isWin) {
+      walletBalance += profit;
+    } else {
+      walletBalance -= betAmount;
+    }
+
+    predictHistory.push({
+      id: currentRound.id,
+      outcome: outcome,
+      bet: betAmount,
+      profit: profit,
+      time: Date.now()
+    });
+
+    localStorage.setItem('zec_wallet_balance', walletBalance);
+    localStorage.setItem('zec_predict_history', JSON.stringify(predictHistory));
+  }
+
+  // Reset for new round
+  activeBet = null;
+  currentRound = {
+    id: Date.now(),
+    entryPrice: livePrice,
+    pool: 4000 + Math.floor(Math.random() * 1000),
+    startTime: Date.now(),
+    duration: 60000
+  };
+
+  updatePredictUI();
+}
+
+function updatePredictTimer() {
+  const elapsed = Date.now() - currentRound.startTime;
+  const remaining = Math.max(0, currentRound.duration - elapsed);
+
+  const m = Math.floor(remaining / 60000);
+  const s = Math.floor((remaining % 60000) / 1000);
+
+  timerMEl.textContent = String(m).padStart(2, '0');
+  timerSEl.textContent = String(s).padStart(2, '0');
+
+  if (remaining === 0) {
+    startNewRound();
+  }
+}
+
+// Bet listeners
+betUpBtn.addEventListener('click', () => {
+  if (activeBet) return;
+  if (walletBalance < 100) return;
+  activeBet = 'up';
+  updatePredictUI();
+});
+
+betDownBtn.addEventListener('click', () => {
+  if (activeBet) return;
+  if (walletBalance < 100) return;
+  activeBet = 'down';
+  updatePredictUI();
+});
+
+// Sync with live updates
+// Removed manual window.updatePrice override as it's now integrated in updatePrice function
+
+// Initialization
+setInterval(updatePredictTimer, 1000);
+if (!currentRound.entryPrice && livePrice) {
+  currentRound.entryPrice = livePrice;
+}
