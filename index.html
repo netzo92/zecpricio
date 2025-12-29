@@ -34,74 +34,133 @@
 
   <main>
     <div class="container" id="container">
-      <!-- Headline Values (swap on toggle) -->
-      <div class="headlines">
-        <!-- Price (default/primary) -->
-        <div class="headline headline-price active" id="headline-price">
-          <div class="ticker-wrapper">
-            <div class="ticker">ZEC</div>
-            <button class="currency-toggle" id="currency-toggle">USD</button>
-          </div>
-          <div class="price-wrapper">
-            <span class="currency" id="currency-symbol">$</span><span class="price" id="price"></span>
-          </div>
-          <div class="controls-wrapper">
-            <button class="price-change-btn" id="price-change-btn"></button>
-          </div>
-        </div>
+      <nav class="mode-tabs">
+        <button class="mode-tab active" id="tab-dashboard">Dashboard</button>
+        <button class="mode-tab" id="tab-predict">Predict</button>
+      </nav>
 
-        <!-- Shielded (secondary, swaps in) -->
-        <div class="headline headline-shielded" id="headline-shielded">
-          <div class="ticker"><span class="shielded-percent" id="shielded-percent"></span> SHIELDED</div>
-          <div class="shielded-wrapper">
-            <span class="shielded-value" id="shielded-value"></span>
-            <span class="shielded-suffix">ZEC</span>
-          </div>
-          <div class="controls-wrapper">
-            <button class="shielded-change-btn" id="shielded-change-btn"></button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 24h Stats -->
-      <div class="stats-container">
-        <div class="stat-item">
-          <span class="stat-label">24h High</span>
-          <span class="stat-value" id="stat-high">—</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">24h Low</span>
-          <span class="stat-value" id="stat-low">—</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">24h Volume</span>
-          <span class="stat-value" id="stat-vol">—</span>
-        </div>
-      </div>
-
-      <!-- Chart Area -->
-      <div class="charts-wrapper">
-        <div class="chart-views">
-          <!-- Price Chart (default) -->
-          <div class="chart-view chart-price active" id="chart-price">
-            <div class="chart-container">
-              <canvas id="price-chart"></canvas>
-              <div class="live-indicator" id="live-indicator"></div>
+      <!-- Dashboard View -->
+      <div class="view-content active" id="dashboard-view">
+        <!-- Headline Values (swap on toggle) -->
+        <div class="headlines">
+          <!-- Price (default/primary) -->
+          <div class="headline headline-price active" id="headline-price">
+            <div class="ticker-wrapper">
+              <div class="ticker">ZEC</div>
+              <button class="currency-toggle" id="currency-toggle">USD</button>
+            </div>
+            <div class="price-wrapper">
+              <span class="currency" id="currency-symbol">$</span><span class="price" id="price"></span>
+            </div>
+            <div class="controls-wrapper">
+              <button class="price-change-btn" id="price-change-btn"></button>
             </div>
           </div>
 
-          <!-- Shielded Chart -->
-          <div class="chart-view chart-shielded" id="chart-shielded">
-            <div class="chart-container">
-              <canvas id="shielded-chart"></canvas>
+          <!-- Shielded (secondary, swaps in) -->
+          <div class="headline headline-shielded" id="headline-shielded">
+            <div class="ticker"><span class="shielded-percent" id="shielded-percent"></span> SHIELDED</div>
+            <div class="shielded-wrapper">
+              <span class="shielded-value" id="shielded-value"></span>
+              <span class="shielded-suffix">ZEC</span>
             </div>
-            <div class="poll-progress">
-              <div class="poll-progress-bar" id="poll-progress-bar"></div>
+            <div class="controls-wrapper">
+              <button class="shielded-change-btn" id="shielded-change-btn"></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 24h Stats -->
+        <div class="stats-container">
+          <div class="stat-item">
+            <span class="stat-label">24h High</span>
+            <span class="stat-value" id="stat-high">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">24h Low</span>
+            <span class="stat-value" id="stat-low">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">24h Volume</span>
+            <span class="stat-value" id="stat-vol">—</span>
+          </div>
+        </div>
+
+        <!-- Chart Area -->
+        <div class="charts-wrapper">
+          <div class="chart-views">
+            <!-- Price Chart (default) -->
+            <div class="chart-view chart-price active" id="chart-price">
+              <div class="chart-container">
+                <canvas id="price-chart"></canvas>
+                <div class="live-indicator" id="live-indicator"></div>
+              </div>
+            </div>
+
+            <!-- Shielded Chart -->
+            <div class="chart-view chart-shielded" id="chart-shielded">
+              <div class="chart-container">
+                <canvas id="shielded-chart"></canvas>
+              </div>
+              <div class="poll-progress">
+                <div class="poll-progress-bar" id="poll-progress-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Predict View -->
+        <div class="view-content" id="predict-view">
+          <div class="predict-header">
+            <div class="user-stats">
+              <span class="wallet-balance" id="wallet-balance">$1,000.00</span>
+            </div>
+            <div class="round-timer-wrapper">
+              <span class="timer-label">next round in</span>
+              <span class="timer-m" id="timer-m">00</span>:<span class="timer-s" id="timer-s">59</span>
+            </div>
+          </div>
+
+          <div class="rounds-container">
+            <!-- Active Round -->
+            <div class="round-card active-round">
+              <div class="round-label">Current Round</div>
+              <div class="round-price-info">
+                <div class="start-price">
+                  <span class="label">Entry</span>
+                  <span class="val" id="round-entry-price">—</span>
+                </div>
+                <div class="current-price">
+                  <span class="label">Last</span>
+                  <span class="val" id="round-last-price">—</span>
+                </div>
+              </div>
+              <div class="pool-stats">
+                <span class="pool-label">Pool:</span>
+                <span class="pool-value" id="round-pool">$4,250</span>
+              </div>
+              <div class="bet-actions">
+                <button class="bet-btn up" id="bet-up">
+                  <span class="arrow">▲</span>
+                  <span class="text">Predict UP</span>
+                </button>
+                <button class="bet-btn down" id="bet-down">
+                  <span class="arrow">▼</span>
+                  <span class="text">Predict DOWN</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Predict History -->
+          <div class="history-section">
+            <div class="section-title">History</div>
+            <div class="history-list" id="predict-history">
+              <!-- Round cards injected here -->
             </div>
           </div>
         </div>
       </div>
-    </div>
   </main>
 
   <!-- Toggle Button -->

@@ -156,7 +156,7 @@ function updateStatsDisplay(quote) {
   saveToCache(LAST_STATS_KEY, quote);
 }
 
-function toggleCurrency() {
+async function toggleCurrency() {
   currentCurrency = currentCurrency === 'USD' ? 'BTC' : 'USD';
   currencyToggleBtn.textContent = currentCurrency;
   currencySymbolEl.textContent = currentCurrency === 'USD' ? '$' : '₿';
@@ -164,13 +164,10 @@ function toggleCurrency() {
 
   localStorage.setItem(CURRENCY_KEY, currentCurrency);
 
-  if (zecQuotes) {
-    const quote = zecQuotes.quote[currentCurrency];
-    updatePrice(quote.price);
-    updateStatsDisplay({
-      high_24h: quote.percent_change_24h > 0 ? quote.price / (1 - quote.percent_change_24h / 100) : quote.price,
-      volume_24h: quote.volume_24h
-    });
+  // Fetch price for the new currency immediately
+  const price = await fetchInitialPrice();
+  if (price !== null) {
+    updatePrice(price);
   }
 }
 
@@ -210,6 +207,7 @@ function createDigitSlot(char, index) {
 }
 
 function updatePriceDisplay(newPrice) {
+  if (!newPrice) return;
   const newChars = newPrice.split('');
 
   if (newChars.length !== currentPriceChars.length) {
@@ -595,10 +593,32 @@ function initShieldedChart() {
 
 async function fetchInitialPrice() {
   try {
-    const res = await fetch(`${CMC_QUOTES_URL}&convert=USD,BTC`);
+    // Only add convert if it's not USD (default) to avoid plan restrictions
+    let url = CMC_QUOTES_URL;
+    if (currentCurrency && currentCurrency !== 'USD') {
+      url += `&convert=${currentCurrency}`;
+    }
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      console.error(`CMC API Error ${res.status}:`, errData);
+      return null;
+    }
+
     const data = await res.json();
+    if (!data || !data.data || !data.data.ZEC) {
+      console.error('Invalid data structure from CMC:', data);
+      return null;
+    }
+
     zecQuotes = data.data.ZEC;
     const quote = zecQuotes.quote[currentCurrency];
+
+    if (!quote) {
+      console.error(`No quote found for currency: ${currentCurrency}`, zecQuotes);
+      return null;
+    }
 
     // Update 24h change display
     const change24h = quote.percent_change_24h;
@@ -618,7 +638,7 @@ async function fetchInitialPrice() {
 
     return quote.price;
   } catch (err) {
-    console.error('Failed to fetch initial price from CMC:', err);
+    console.error(`Failed to fetch ${currentCurrency} price from CMC:`, err);
     return null;
   }
 }
@@ -844,6 +864,8 @@ let wsRetries = 0;
 let pollingInterval = null;
 
 function updatePrice(price) {
+  if (price === null || price === undefined) return;
+
   // Flash color on price change
   if (previousPrice !== null && price !== previousPrice) {
     priceEl.classList.remove('flash-up', 'flash-down');
@@ -871,10 +893,22 @@ function startPricePolling() {
   console.log('WebSocket unavailable, falling back to CMC polling');
   pollingInterval = setInterval(async () => {
     try {
-      const res = await fetch(`${CMC_QUOTES_URL}&convert=USD,BTC`);
+      // Only add convert if it's not USD (default)
+      let url = CMC_QUOTES_URL;
+      if (currentCurrency && currentCurrency !== 'USD') {
+        url += `&convert=${currentCurrency}`;
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) return;
+
       const data = await res.json();
+      if (!data || !data.data || !data.data.ZEC) return;
+
       zecQuotes = data.data.ZEC;
       const quote = zecQuotes.quote[currentCurrency];
+      if (!quote) return;
+
       const price = quote.price;
       const change24h = quote.percent_change_24h;
 
