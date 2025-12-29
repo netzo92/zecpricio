@@ -106,6 +106,7 @@ let hourlyYAxisLocked = { min: null, max: null };
 
 // Currency State
 let zecQuotes = null; // Store latest quotes from CMC
+let currentCurrency = 'USD'; // 'USD' or 'BTC'
 
 // Predict Mode State
 let currentMode = 'dashboard';
