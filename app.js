@@ -437,25 +437,28 @@ async function toggleShieldedChartTimeframe() {
 // Fetch live shielded supply from Zcash node via RPC proxy
 async function fetchLiveShieldedSupply() {
   try {
-    // Get current block height
     const heightRes = await fetch(ZCASH_RPC_PROXY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '1.0', id: 'zec', method: 'getblockcount', params: [] })
     });
+
+    if (!heightRes.ok) throw new Error(`RPC height check failed: ${heightRes.status}`);
     const heightData = await heightRes.json();
     const height = heightData.result;
 
-    // Get block with valuePools
     const blockRes = await fetch(ZCASH_RPC_PROXY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '1.0', id: 'zec', method: 'getblock', params: [String(height), 1] })
     });
+
+    if (!blockRes.ok) throw new Error(`RPC block fetch failed: ${blockRes.status}`);
     const blockData = await blockRes.json();
     const block = blockData.result;
 
-    // Calculate total shielded
+    if (!block || !block.valuePools) return null;
+
     const pools = block.valuePools || [];
     const sprout = pools.find(p => p.id === 'sprout')?.chainValueZat || 0;
     const sapling = pools.find(p => p.id === 'sapling')?.chainValueZat || 0;
@@ -464,7 +467,7 @@ async function fetchLiveShieldedSupply() {
 
     return { height, time: block.time, total, sprout: sprout / 1e8, sapling: sapling / 1e8, orchard: orchard / 1e8 };
   } catch (err) {
-    console.error('Failed to fetch live shielded supply:', err);
+    console.warn('Failed to fetch live shielded supply:', err.message);
     return null;
   }
 }
@@ -1078,61 +1081,74 @@ function loadFromCache(key) {
 
 // Initial data loading
 async function init() {
-  // Load cached currency preference
-  const cachedCurrency = localStorage.getItem(CURRENCY_KEY);
-  if (cachedCurrency) {
-    currentCurrency = cachedCurrency;
-    currencyToggleBtn.textContent = currentCurrency;
-    currencySymbolEl.textContent = currentCurrency === 'USD' ? '$' : '₿';
-    currencySymbolEl.style.fontSize = currentCurrency === 'USD' ? '32px' : '48px';
+  try {
+    console.log('App initialization started...');
+
+    // 1. Load cached currency preference
+    const cachedCurrency = localStorage.getItem(CURRENCY_KEY);
+    if (cachedCurrency) {
+      currentCurrency = cachedCurrency;
+      currencyToggleBtn.textContent = currentCurrency;
+      currencySymbolEl.textContent = currentCurrency === 'USD' ? '$' : '₿';
+      currencySymbolEl.style.fontSize = currentCurrency === 'USD' ? '32px' : '48px';
+    }
+
+    // 2. Load cached data for instant display (UX Optimization)
+    const cachedPrice = loadFromCache(LAST_PRICE_KEY);
+    if (cachedPrice) {
+      updatePrice(cachedPrice);
+      revealUI(); // Show UI early if we have cached data
+    }
+
+    const cachedStats = loadFromCache(LAST_STATS_KEY);
+    if (cachedStats) {
+      updateStatsDisplay(cachedStats);
+    }
+
+    // 3. Fetch initial price (Critical path)
+    const initialPrice = await fetchInitialPrice();
+    if (initialPrice !== null) {
+      livePrice = initialPrice;
+      previousPrice = initialPrice;
+      updatePriceDisplay(formatPrice(initialPrice));
+      revealUI(); // Show UI as soon as we have a real price
+    } else if (!isReady) {
+      // Fallback: If price fetch fails and we're still on splash, reveal anyway to show error/polling state
+      revealUI();
+    }
+
+    // 4. Background Fetches (Non-blocking)
+    Promise.all([
+      fetchShieldedData().then(() => {
+        // Only init shielded chart if we have data
+        if (shieldedDataFull) initShieldedChart();
+      }),
+      fetchPriceChartData(priceChartTimeframe).then(() => {
+        initPriceChart();
+        // Lock y-axis for initial 1H view if applicable
+        if (priceChartTimeframe === '1h' && priceHistoricalData) {
+          const { data } = getPriceChartDataWithLiveTip();
+          lockYAxisForHourly(data);
+          applyYAxisLock();
+          priceChart.update('none');
+        }
+      }),
+      fetchCirculatingSupply(),
+      fetchLiveShieldedSupply().then(liveShielded => {
+        if (liveShielded) updateLiveShieldedDisplay(liveShielded);
+      })
+    ]).catch(err => {
+      console.warn('One or more background fetches failed:', err);
+    });
+
+    // 5. Connect WebSocket/Polling
+    connectPriceStream();
+
+    console.log('App initialization sequence complete.');
+  } catch (err) {
+    console.error('FATAL initialization error:', err);
+    revealUI(); // Always clear splash screen
   }
-
-  // Load cached data for instant display
-  const cachedPrice = loadFromCache(LAST_PRICE_KEY);
-  if (cachedPrice) {
-    updatePrice(cachedPrice);
-  }
-
-  const cachedStats = loadFromCache(LAST_STATS_KEY);
-  if (cachedStats) {
-    updateStatsDisplay(cachedStats);
-  }
-
-  // Fetch initial data
-  const [initialPrice] = await Promise.all([
-    fetchInitialPrice(),
-    fetchShieldedData(),
-    fetchPriceChartData(priceChartTimeframe),
-    fetchCirculatingSupply()
-  ]);
-
-  // Initialize price display and chart
-  if (initialPrice !== null) {
-    livePrice = initialPrice;
-    previousPrice = initialPrice;
-    updatePriceDisplay(formatPrice(initialPrice));
-  }
-  initPriceChart();
-
-  // Lock y-axis for initial 1H view
-  if (priceChartTimeframe === '1h' && priceHistoricalData) {
-    const { data } = getPriceChartDataWithLiveTip();
-    lockYAxisForHourly(data);
-    applyYAxisLock();
-    priceChart.update('none');
-  }
-
-  // Fetch live shielded supply (updates headline and chart tip)
-  const liveShielded = await fetchLiveShieldedSupply();
-  if (liveShielded) {
-    updateLiveShieldedDisplay(liveShielded);
-  }
-
-  // Reveal UI
-  revealUI();
-
-  // Connect WebSocket for live price updates
-  connectPriceStream();
 }
 
 window.addEventListener('DOMContentLoaded', init);
