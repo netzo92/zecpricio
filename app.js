@@ -51,6 +51,15 @@ const shieldedChangeBtn = document.getElementById('shielded-change-btn');
 const liveIndicator = document.getElementById('live-indicator');
 const pollProgressBar = document.getElementById('poll-progress-bar');
 
+// Stats Elements
+const statHighEl = document.getElementById('stat-high');
+const statLowEl = document.getElementById('stat-low');
+const statVolEl = document.getElementById('stat-vol');
+
+// Currency Elements
+const currencyToggleBtn = document.getElementById('currency-toggle');
+const currencySymbolEl = document.getElementById('currency-symbol');
+
 // ============================================================================
 // State
 // ============================================================================
@@ -78,6 +87,10 @@ const TIMEFRAME_CYCLE = ['1d', '1mo', '1y', '1h'];
 const TIMEFRAME_LABELS = { '1d': 'D', '1mo': 'M', '1y': 'Y', '1h': 'H' };
 let hourlyYAxisLocked = { min: null, max: null };
 
+// Currency State
+let currentCurrency = 'USD'; // 'USD' or 'BTC'
+let zecQuotes = null; // Store latest quotes from CMC
+
 // ============================================================================
 // View Toggle
 // ============================================================================
@@ -92,7 +105,7 @@ function switchView() {
     chartPrice.classList.remove('active');
     chartShielded.classList.add('active');
     // Update button
-    toggleText.textContent = 'show price chart';
+    toggleText.textContent = 'market price';
     viewToggle.classList.add('flipped');
   } else {
     currentView = 'price';
@@ -103,7 +116,7 @@ function switchView() {
     chartShielded.classList.remove('active');
     chartPrice.classList.add('active');
     // Update button
-    toggleText.textContent = 'show shielded supply';
+    toggleText.textContent = 'shielded supply';
     viewToggle.classList.remove('flipped');
   }
 }
@@ -115,11 +128,53 @@ viewToggle.addEventListener('click', switchView);
 // ============================================================================
 
 function formatPrice(price) {
+  if (currentCurrency === 'BTC') {
+    return price.toLocaleString('en-US', {
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 6
+    });
+  }
   return price.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
 }
+
+function formatStatValue(value) {
+  if (currentCurrency === 'BTC') return value.toFixed(6);
+  if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B';
+  if (value >= 1e6) return (value / 1e6).toFixed(2) + 'M';
+  return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function updateStatsDisplay(quote) {
+  if (!quote) return;
+  statHighEl.textContent = (currentCurrency === 'USD' ? '$' : '') + formatStatValue(quote.high_24h || 0);
+  statLowEl.textContent = (currentCurrency === 'USD' ? '$' : '') + formatStatValue(quote.low_24h || 0);
+  statVolEl.textContent = (currentCurrency === 'USD' ? '$' : '') + formatStatValue(quote.volume_24h || 0);
+
+  saveToCache(LAST_STATS_KEY, quote);
+}
+
+function toggleCurrency() {
+  currentCurrency = currentCurrency === 'USD' ? 'BTC' : 'USD';
+  currencyToggleBtn.textContent = currentCurrency;
+  currencySymbolEl.textContent = currentCurrency === 'USD' ? '$' : '₿';
+  currencySymbolEl.style.fontSize = currentCurrency === 'USD' ? '32px' : '48px';
+
+  localStorage.setItem(CURRENCY_KEY, currentCurrency);
+
+  if (zecQuotes) {
+    const quote = zecQuotes.quote[currentCurrency];
+    updatePrice(quote.price);
+    updateStatsDisplay({
+      high_24h: quote.percent_change_24h > 0 ? quote.price / (1 - quote.percent_change_24h / 100) : quote.price,
+      volume_24h: quote.volume_24h
+    });
+  }
+}
+
+currencyToggleBtn.addEventListener('click', toggleCurrency);
 
 function formatShieldedValue(value) {
   return Math.round(value).toLocaleString('en-US');
@@ -470,10 +525,11 @@ function initShieldedChart() {
       labels,
       datasets: [{
         data,
-        borderColor: '#fff',
-        borderWidth: 1.5,
-        fill: false,
-        tension: 0.1,
+        borderColor: '#f4b728',
+        borderWidth: 2,
+        fill: true,
+        backgroundColor: 'rgba(244, 183, 40, 0.05)',
+        tension: 0.4,
         pointRadius: 0,
         pointHoverRadius: 0
       }]
@@ -539,22 +595,28 @@ function initShieldedChart() {
 
 async function fetchInitialPrice() {
   try {
-    const res = await fetch(CMC_QUOTES_URL);
+    const res = await fetch(`${CMC_QUOTES_URL}&convert=USD,BTC`);
     const data = await res.json();
-    const zecData = data.data.ZEC;
+    zecQuotes = data.data.ZEC;
+    const quote = zecQuotes.quote[currentCurrency];
 
     // Update 24h change display
-    const change24h = zecData.quote.USD.percent_change_24h;
+    const change24h = quote.percent_change_24h;
     if (change24h !== undefined) {
       updatePriceChangeBtn(change24h);
     }
 
+    // Update Stats
+    updateStatsDisplay({
+      volume_24h: quote.volume_24h
+    });
+
     // Update circulating supply if not already set
-    if (zecData.circulating_supply) {
-      circulatingSupply = zecData.circulating_supply;
+    if (zecQuotes.circulating_supply) {
+      circulatingSupply = zecQuotes.circulating_supply;
     }
 
-    return zecData.quote.USD.price;
+    return quote.price;
   } catch (err) {
     console.error('Failed to fetch initial price from CMC:', err);
     return null;
@@ -705,9 +767,10 @@ function initPriceChart() {
       datasets: [{
         data,
         borderColor: '#fff',
-        borderWidth: 1.5,
-        fill: false,
-        tension: 0.1,
+        borderWidth: 2,
+        fill: true,
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        tension: 0.4,
         pointRadius: 0,
         pointHoverRadius: 0
       }]
@@ -796,7 +859,9 @@ function updatePrice(price) {
   livePrice = price;
   updatePriceDisplay(formatPrice(price));
   updatePriceChartLiveTip();
-  document.title = `$${formatPrice(price)} · ZEC`;
+  document.title = `${currentCurrency === 'USD' ? '$' : '₿'}${formatPrice(price)} · ZEC`;
+
+  saveToCache(LAST_PRICE_KEY, price);
 }
 
 // Fallback: poll CoinGecko every 10 seconds
@@ -806,16 +871,21 @@ function startPricePolling() {
   console.log('WebSocket unavailable, falling back to CMC polling');
   pollingInterval = setInterval(async () => {
     try {
-      const res = await fetch(CMC_QUOTES_URL);
+      const res = await fetch(`${CMC_QUOTES_URL}&convert=USD,BTC`);
       const data = await res.json();
-      const zecData = data.data.ZEC;
-      const price = zecData.quote.USD.price;
-      const change24h = zecData.quote.USD.percent_change_24h;
+      zecQuotes = data.data.ZEC;
+      const quote = zecQuotes.quote[currentCurrency];
+      const price = quote.price;
+      const change24h = quote.percent_change_24h;
 
       updatePrice(price);
       if (priceChartTimeframe === '1d') {
         updatePriceChangeBtn(change24h);
       }
+
+      updateStatsDisplay({
+        volume_24h: quote.volume_24h
+      });
     } catch (err) {
       console.error('Polling error:', err);
     }
@@ -839,9 +909,17 @@ function connectPriceStream() {
   };
 
   ws.onmessage = (event) => {
-    const trade = JSON.parse(event.data);
-    const price = parseFloat(trade.p);
-    updatePrice(price);
+    const data = JSON.parse(event.data);
+    const price = parseFloat(data.p);
+
+    // Only update if current currency is USD (Binance stream is ZECUSDT)
+    if (currentCurrency === 'USD') {
+      updatePrice(price);
+      // Minimal stats update if we have zecQuotes
+      if (zecQuotes && zecQuotes.quote.USD) {
+        zecQuotes.quote.USD.price = price;
+      }
+    }
   };
 
   ws.onclose = (event) => {
@@ -878,20 +956,64 @@ function revealUI() {
 }
 
 // ============================================================================
+// Caching
+// ============================================================================
+
+const CURRENCY_KEY = 'zec_currency';
+const LAST_PRICE_KEY = 'zec_last_price';
+const LAST_STATS_KEY = 'zec_last_stats';
+
+function saveToCache(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error('Error saving to cache:', e);
+  }
+}
+
+function loadFromCache(key) {
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  } catch (e) {
+    console.error('Error loading from cache:', e);
+    return null;
+  }
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
+// Initial data loading
 async function init() {
-  // Fetch all data in parallel
-  const [shielded, initialPrice] = await Promise.all([
-    fetchShieldedData(),
+  // Load cached currency preference
+  const cachedCurrency = localStorage.getItem(CURRENCY_KEY);
+  if (cachedCurrency) {
+    currentCurrency = cachedCurrency;
+    currencyToggleBtn.textContent = currentCurrency;
+    currencySymbolEl.textContent = currentCurrency === 'USD' ? '$' : '₿';
+    currencySymbolEl.style.fontSize = currentCurrency === 'USD' ? '32px' : '48px';
+  }
+
+  // Load cached data for instant display
+  const cachedPrice = loadFromCache(LAST_PRICE_KEY);
+  if (cachedPrice) {
+    updatePrice(cachedPrice);
+  }
+
+  const cachedStats = loadFromCache(LAST_STATS_KEY);
+  if (cachedStats) {
+    updateStatsDisplay(cachedStats);
+  }
+
+  // Fetch initial data
+  const [initialPrice] = await Promise.all([
     fetchInitialPrice(),
+    fetchShieldedData(),
     fetchPriceChartData(priceChartTimeframe),
     fetchCirculatingSupply()
   ]);
-
-  // Initialize shielded chart and value
-  initShieldedChart();
 
   // Initialize price display and chart
   if (initialPrice !== null) {
@@ -922,7 +1044,7 @@ async function init() {
   connectPriceStream();
 }
 
-init();
+window.addEventListener('DOMContentLoaded', init);
 
 // Refresh price chart data - 30s for 1H, 5min for others
 function getChartRefreshInterval() {

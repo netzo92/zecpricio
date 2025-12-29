@@ -1,48 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ZEC</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  
+
   <!-- Open Graph -->
   <meta property="og:title" content="ZEC">
   <meta property="og:description" content="Live Zcash price">
   <meta property="og:image" content="https://z.cash/wp-content/uploads/2023/11/Brandmark-Yellow.png">
   <meta property="og:url" content="https://zecprice.com">
   <meta property="og:type" content="website">
-  
+
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="ZEC">
   <meta name="twitter:description" content="Live Zcash price">
   <meta name="twitter:image" content="https://z.cash/wp-content/uploads/2023/11/Brandmark-Yellow.png">
-  
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div class="splash" id="splash">
     <span>encrypt the money</span>
     <div class="loading-dots"></div>
   </div>
-  
+
   <main>
     <div class="container" id="container">
       <!-- Headline Values (swap on toggle) -->
       <div class="headlines">
         <!-- Price (default/primary) -->
         <div class="headline headline-price active" id="headline-price">
-          <div class="ticker">ZEC</div>
-          <div class="price-wrapper">
-            <span class="currency">$</span><span class="price" id="price"></span>
+          <div class="ticker-wrapper">
+            <div class="ticker">ZEC</div>
+            <button class="currency-toggle" id="currency-toggle">USD</button>
           </div>
-          <button class="price-change-btn" id="price-change-btn"></button>
+          <div class="price-wrapper">
+            <span class="currency" id="currency-symbol">$</span><span class="price" id="price"></span>
+          </div>
+          <div class="controls-wrapper">
+            <button class="price-change-btn" id="price-change-btn"></button>
+          </div>
         </div>
-        
+
         <!-- Shielded (secondary, swaps in) -->
         <div class="headline headline-shielded" id="headline-shielded">
           <div class="ticker"><span class="shielded-percent" id="shielded-percent"></span> SHIELDED</div>
@@ -50,10 +57,28 @@
             <span class="shielded-value" id="shielded-value"></span>
             <span class="shielded-suffix">ZEC</span>
           </div>
-          <button class="shielded-change-btn" id="shielded-change-btn"></button>
+          <div class="controls-wrapper">
+            <button class="shielded-change-btn" id="shielded-change-btn"></button>
+          </div>
         </div>
       </div>
-      
+
+      <!-- 24h Stats -->
+      <div class="stats-container">
+        <div class="stat-item">
+          <span class="stat-label">24h High</span>
+          <span class="stat-value" id="stat-high">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">24h Low</span>
+          <span class="stat-value" id="stat-low">—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">24h Volume</span>
+          <span class="stat-value" id="stat-vol">—</span>
+        </div>
+      </div>
+
       <!-- Chart Area -->
       <div class="charts-wrapper">
         <div class="chart-views">
@@ -64,7 +89,7 @@
               <div class="live-indicator" id="live-indicator"></div>
             </div>
           </div>
-          
+
           <!-- Shielded Chart -->
           <div class="chart-view chart-shielded" id="chart-shielded">
             <div class="chart-container">
@@ -78,16 +103,17 @@
       </div>
     </div>
   </main>
-  
+
   <!-- Toggle Button -->
   <button class="view-toggle" id="view-toggle">
-    <span class="toggle-text">show shielded supply</span>
     <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M7 17L17 7M17 7H7M17 7V17"/>
+      <path d="M7 17L17 7M17 7H7M17 7V17" />
     </svg>
+    <span class="toggle-text">shielded supply</span>
   </button>
-  
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>

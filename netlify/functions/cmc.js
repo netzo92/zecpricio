@@ -66,6 +66,10 @@ exports.handler = async (event, context) => {
 
         const data = await response.json();
 
+        if (!response.ok) {
+            console.error('CMC API Error:', response.status, data);
+        }
+
         return {
             statusCode: response.status,
             headers,
