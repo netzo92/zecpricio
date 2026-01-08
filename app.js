@@ -109,6 +109,7 @@ let priceChartTimeframe = '1d'; // '1d', '1mo', '1y', or '1h' - starts at D
 const TIMEFRAME_CYCLE = ['1d', '1mo', '1y', '1h'];
 const TIMEFRAME_LABELS = { '1d': 'D', '1mo': 'M', '1y': 'Y', '1h': 'H' };
 let hourlyYAxisLocked = { min: null, max: null };
+let isTogglingPriceChart = false; // Prevent race condition on rapid clicks
 
 // Currency State
 let zecQuotes = null; // Store latest quotes from CMC
@@ -400,7 +401,13 @@ function updateShieldedBtn(data) {
 }
 
 // Toggle shielded chart timeframe
+let isTogglingShieldedChart = false; // Prevent race condition on rapid clicks
+
 async function toggleShieldedChartTimeframe() {
+  // Prevent race condition from rapid clicks
+  if (isTogglingShieldedChart) return;
+  isTogglingShieldedChart = true;
+
   const currentIndex = SHIELDED_TIMEFRAME_CYCLE.indexOf(shieldedChartTimeframe);
   shieldedChartTimeframe = SHIELDED_TIMEFRAME_CYCLE[(currentIndex + 1) % SHIELDED_TIMEFRAME_CYCLE.length];
 
@@ -440,6 +447,7 @@ async function toggleShieldedChartTimeframe() {
 
   // Update button with % change
   updateShieldedBtn(newData);
+  isTogglingShieldedChart = false; // Release lock
 }
 
 // Fetch live shielded supply from Zcash node via RPC proxy
@@ -715,6 +723,10 @@ function updatePriceChangeBtn(change) {
 
 // Toggle price chart timeframe
 async function togglePriceChartTimeframe() {
+  // Prevent race condition from rapid clicks
+  if (isTogglingPriceChart) return;
+  isTogglingPriceChart = true;
+
   const previousTimeframe = priceChartTimeframe;
 
   // Cycle to next timeframe: 1d → 1mo → 1y → 1h → 1d...
@@ -742,6 +754,7 @@ async function togglePriceChartTimeframe() {
     priceChangeBtn.style.opacity = '1';
     priceChangeBtn.style.pointerEvents = 'auto';
     liveIndicator.style.opacity = '1';
+    isTogglingPriceChart = false; // Release lock
 
     // Optional: Flash error state on button
     priceChangeBtn.classList.add('error');
@@ -785,13 +798,16 @@ async function togglePriceChartTimeframe() {
         updatePriceChangeBtn(percentChange);
         priceChangeBtn.style.opacity = '1';
         priceChangeBtn.style.pointerEvents = 'auto';
+        isTogglingPriceChart = false; // Release lock
       }, 150);
     } else {
       priceChangeBtn.style.pointerEvents = 'auto'; // Re-enable if no data to calc change
+      isTogglingPriceChart = false; // Release lock
     }
   } else {
     priceChangeBtn.style.opacity = '1';
     liveIndicator.style.opacity = '1';
+    isTogglingPriceChart = false; // Release lock
   }
 }
 
